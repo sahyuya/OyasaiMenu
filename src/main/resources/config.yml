@@ -1,0 +1,30 @@
+# OyasaiMenu メインコンフィグ
+
+menu:
+  default: root
+  cache-seconds: 30
+  chat-input-timeout: 30
+
+editor:
+  auto-backup: true
+  backup-dir: "backups"
+
+discord:
+  enabled: false
+  cache-seconds: 60
+  fetch-count: 5
+
+macro:
+  max-per-player: 10
+  cooldown-seconds: 3
+  # 空リストにすると全コマンドを許可
+  command-whitelist:
+    - "warp"
+    - "home"
+    - "spawn"
+    - "tpa"
+    - "msg"
+    - "r"
+
+placeholders:
+  server-name: "MyServer"

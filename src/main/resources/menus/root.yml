@@ -1,0 +1,65 @@
+# menus/root.yml - /menu で最初に開くトップメニュー
+
+menu:
+  id: root
+  title: "&8✦ 総合メニュー ✦"
+  size: 54
+
+items:
+  shop:
+    slot: 10
+    icon: CHEST
+    name: "&a⚙ ショップ"
+    lore:
+      - "&7アイテムを売買できます"
+      - ""
+      - "&eクリックして開く"
+    actions:
+      - type: open_menu
+        target: shop/index
+
+  status:
+    slot: 13
+    icon: COMPASS
+    name: "&bサーバー情報"
+    lore:
+      - "&7TPS: &f%server_tps%"
+      - "&7オンライン: &f%online% 人"
+    actions:
+      - type: open_menu
+        target: system/status
+
+  macro:
+    slot: 16
+    icon: WRENCH
+    name: "&6コマンドマクロ"
+    lore:
+      - "&7よく使うコマンドをワンクリックで実行"
+    actions:
+      - type: open_menu
+        target: macro/list
+
+  admin:
+    slot: 31
+    icon: COMMAND_BLOCK
+    name: "&c管理者メニュー"
+    permission: visualmenu.admin
+    actions:
+      - type: check_permission
+        permission: "visualmenu.admin"
+        success:
+          - type: open_menu
+            target: admin/editor
+        fail:
+          - type: message
+            text: "&c権限がありません。"
+
+  fill_tl:
+    slot: 0
+    icon: BLACK_STAINED_GLASS_PANE
+    name: " "
+
+  fill_tr:
+    slot: 8
+    icon: BLACK_STAINED_GLASS_PANE
+    name: " "

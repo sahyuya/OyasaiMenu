@@ -1,0 +1,66 @@
+# menus/shop/index.yml - ショップカテゴリ一覧
+# /shop または /sh で開かれるトップページ
+
+menu:
+  id: shop/index
+  title: "&6⚙ ショップ"
+  size: 54
+
+items:
+  blocks:
+    slot: 10
+    icon: GRASS_BLOCK
+    name: "&1ブロック"
+    lore:
+      - "&7/shop blocks でも開けます"
+    actions:
+      - type: open_shop
+        category: blocks
+
+  decorations:
+    slot: 11
+    icon: FLOWER_POT
+    name: "&1装飾"
+    lore:
+      - "&7/shop decorations でも開けます"
+    actions:
+      - type: open_shop
+        category: decorations
+
+  ores:
+    slot: 12
+    icon: DIAMOND_ORE
+    name: "&1鉱石"
+    lore:
+      - "&7/shop ores でも開けます"
+    actions:
+      - type: open_shop
+        category: ores
+
+  redstone:
+    slot: 13
+    icon: REDSTONE
+    name: "&1レッドストーン"
+    lore:
+      - "&7/shop redstone でも開けます"
+    actions:
+      - type: open_shop
+        category: redstone
+
+  tools:
+    slot: 14
+    icon: DIAMOND_PICKAXE
+    name: "&1ツール"
+    lore:
+      - "&7/shop tools でも開けます"
+    actions:
+      - type: open_shop
+        category: tools
+
+  back:
+    slot: 49
+    icon: ARROW
+    name: "&c← 戻る"
+    actions:
+      - type: open_menu
+        target: root
