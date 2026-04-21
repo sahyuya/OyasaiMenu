@@ -1,11 +1,12 @@
 # menus/root.yml
-# ポップアップ型総合メニュー
+# 総合メニュー (ポップアップ型)
 #
 # ■ レイアウト
-#   行0〜4 (スロット 0〜44): 灰色ガラスのお知らせエリア
-#     (お知らせ内容は announcements.yml で設定)
-#   行5    (スロット 45〜53): ナビゲーションバー
-#     各ボタンは専用エンジン / メニューを開くアクションを持つ
+#   スロット 0〜44: 灰色ガラス + お知らせ (announcements.yml から自動描画)
+#   スロット 45〜53: NavBar が Kotlin 側で描画するため YAML 定義不要
+#
+# このファイルに YAML アイテムを追加してもスロット 45〜53 は NavBar で上書きされる。
+# お知らせはスロット 0〜44 の空きスロットを使用する。
 
 menu:
   id: root
@@ -13,90 +14,5 @@ menu:
   size: 54
 
 items:
-  # ========== 行5: ナビゲーションバー ==========
-  # (NavBarBuilder が実際の表示を担うため YAML ではアクションのみ定義)
-  # ※ MenuEngine は root を YAML ロードするが、ナビバーの ItemStack は
-  #   RootMenuEngine が上書き描画する。
-
-  nav_info:
-    slot: 45
-    icon: GRAY_STAINED_GLASS_PANE
-    name: "&f⚙ サーバー/個人情報"
-    lore:
-      - "&7TPS・残高・ポイントを確認"
-    actions:
-      - type: open_info
-
-  nav_channel:
-    slot: 46
-    icon: RED_CONCRETE_POWDER
-    name: "&cチャンネルメニュー"
-    lore:
-      - "&7チャットチャンネルを切り替え"
-    actions:
-      - type: open_channel
-
-  nav_shop:
-    slot: 47
-    icon: ORANGE_CONCRETE_POWDER
-    name: "&6サーバーショップ"
-    lore:
-      - "&7アイテムの購入・売却"
-    actions:
-      - type: open_shop
-        category: ""
-
-  nav_sell:
-    slot: 48
-    icon: YELLOW_CONCRETE_POWDER
-    name: "&e一括売却"
-    lore:
-      - "&7アイテムをまとめて売却"
-      - "&7(クリエイティブ不可)"
-    actions:
-      - type: open_sell
-
-  nav_socialikes:
-    slot: 49
-    icon: LIME_CONCRETE_POWDER
-    name: "&aSocialLikes"
-    lore:
-      - "&7建築の評価・探索"
-    actions:
-      - type: open_socialikes
-
-  nav_carbuilder:
-    slot: 50
-    icon: CYAN_CONCRETE_POWDER
-    name: "&bCarBuilder"
-    lore:
-      - "&7カービルダーメニュー"
-    actions:
-      - type: open_carbuilder
-
-  nav_utility:
-    slot: 51
-    icon: BLUE_CONCRETE_POWDER
-    name: "&9ユーティリティ"
-    lore:
-      - "&7コマンドショートカット集"
-    actions:
-      - type: open_utility
-
-  nav_macro:
-    slot: 52
-    icon: PURPLE_CONCRETE_POWDER
-    name: "&5マクロ"
-    lore:
-      - "&7自分専用コマンドマクロ"
-    actions:
-      - type: open_macro
-
-  nav_links:
-    slot: 53
-    icon: PINK_CONCRETE_POWDER
-    name: "&dリンク集"
-    lore:
-      - "&7Wiki・Discord・WebMAP など"
-    actions:
-      - type: open_links
+# YAML でナビバーを定義しない → NavBar.kt が Kotlin で直接描画する
+# お知らせのないスロットは AnnouncementManager + MenuEngine が灰色ガラスで埋める

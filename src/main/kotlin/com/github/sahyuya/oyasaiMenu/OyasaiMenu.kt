@@ -11,22 +11,6 @@ import org.bukkit.event.player.PlayerLoginEvent
 import org.bukkit.event.player.PlayerQuitEvent
 import org.bukkit.plugin.java.JavaPlugin
 
-/**
- * OyasaiMenu エントリポイント
- *
- * ■ パッケージ構成
- *   engine/  : MenuEngine, ActionEngine, NavBar, NavHandler,
- *              InfoEngine, ChannelEngine, ShopEngine, SellEngine,
- *              PointShopEngine, MacroEngine, UtilityEngine,
- *              SocialLikesEngine, CarBuilderEngine, LinksEngine,
- *              AdminEngine
- *   loader/  : MenuLoader, ShopLoader, PointShopLoader
- *   manager/ : EconomyManager, MacroManager, TokenCurrencyManager,
- *              AnnouncementManager
- *   command/ : MenuCommand, MenuAdminCommand, ShopCommand, SellCommand,
- *              PointShopCommand, MacroCommand, AdminMenuCommand
- *   model/   : Models, ShopModels, PointShopModels
- */
 @Suppress("UnstableApiUsage")
 class OyasaiMenu : JavaPlugin(), Listener {
 
@@ -34,61 +18,50 @@ class OyasaiMenu : JavaPlugin(), Listener {
     lateinit var menuLoader: MenuLoader
     lateinit var shopLoader: ShopLoader
     lateinit var pointShopLoader: PointShopLoader
+    lateinit var popupMenuLoader: PopupMenuLoader
 
     // ---- Managers ----
     lateinit var macroManager: MacroManager
     lateinit var announcementManager: AnnouncementManager
 
-    // ---- Nav (共有) ----
-    lateinit var navHandler: NavHandler
-
     // ---- Engines ----
     lateinit var menuEngine: MenuEngine
     lateinit var actionEngine: ActionEngine
-    lateinit var infoEngine: InfoEngine
-    lateinit var channelEngine: ChannelEngine
+    lateinit var popupMenuEngine: PopupMenuEngine   // 汎用ポップアップエンジン
     lateinit var shopEngine: ShopEngine
     lateinit var sellEngine: SellEngine
     lateinit var pointShopEngine: PointShopEngine
     lateinit var macroEngine: MacroEngine
-    lateinit var utilityEngine: UtilityEngine
-    lateinit var socialLikesEngine: SocialLikesEngine
-    lateinit var carBuilderEngine: CarBuilderEngine
-    lateinit var linksEngine: LinksEngine
     lateinit var adminEngine: AdminEngine
 
     override fun onEnable() {
         saveDefaultConfig()
 
         // Loaders
-        menuLoader           = MenuLoader(this)
-        shopLoader           = ShopLoader(this)
-        pointShopLoader      = PointShopLoader(this)
+        menuLoader       = MenuLoader(this)
+        shopLoader       = ShopLoader(this)
+        pointShopLoader  = PointShopLoader(this)
+        popupMenuLoader  = PopupMenuLoader(this)
 
         // Managers
         macroManager         = MacroManager(this)
         announcementManager  = AnnouncementManager(this)
 
-        // Engines (NavHandler は他エンジンを参照するので最後)
-        menuEngine           = MenuEngine(this)
-        actionEngine         = ActionEngine(this)
-        infoEngine           = InfoEngine(this)
-        channelEngine        = ChannelEngine(this)
-        shopEngine           = ShopEngine(this)
-        sellEngine           = SellEngine(this)
-        pointShopEngine      = PointShopEngine(this)
-        macroEngine          = MacroEngine(this)
-        utilityEngine        = UtilityEngine(this)
-        socialLikesEngine    = SocialLikesEngine(this)
-        carBuilderEngine     = CarBuilderEngine(this)
-        linksEngine          = LinksEngine(this)
-        adminEngine          = AdminEngine(this)
-        navHandler           = NavHandler(this)   // ← 全エンジン初期化後
+        // Engines
+        menuEngine       = MenuEngine(this)
+        actionEngine     = ActionEngine(this)
+        popupMenuEngine  = PopupMenuEngine(this)
+        shopEngine       = ShopEngine(this)
+        sellEngine       = SellEngine(this)
+        pointShopEngine  = PointShopEngine(this)
+        macroEngine      = MacroEngine(this)
+        adminEngine      = AdminEngine(this)
 
         // データロード
         menuLoader.loadAll()
         shopLoader.loadAll()
         pointShopLoader.loadAll()
+        popupMenuLoader.loadAll()
         announcementManager.loadAll()
         EconomyManager.init(this)
         TokenCurrencyManager.init(this)
@@ -107,19 +80,16 @@ class OyasaiMenu : JavaPlugin(), Listener {
 
         // イベントリスナー登録
         listOf(
-            menuEngine, infoEngine, channelEngine,
+            menuEngine, popupMenuEngine,
             shopEngine, sellEngine, pointShopEngine,
-            macroEngine, utilityEngine,
-            socialLikesEngine, carBuilderEngine, linksEngine,
-            adminEngine, this
+            macroEngine, adminEngine, this
         ).forEach { server.pluginManager.registerEvents(it as org.bukkit.event.Listener, this) }
 
         logger.info(
-            "OyasaiMenu 起動完了 | " +
-                    "メニュー:${menuLoader.getMenuCount()} " +
+            "OyasaiMenu 起動完了 | メニュー:${menuLoader.getMenuCount()} " +
                     "ショップ:${shopLoader.getAllCategories().size} " +
                     "Pショップ:${pointShopLoader.getAllCategories().size} " +
-                    "お知らせ:${announcementManager.getAnnouncements().size}"
+                    "Popup:${popupMenuLoader.let { _ -> "loaded" }}"
         )
     }
 
@@ -144,6 +114,7 @@ class OyasaiMenu : JavaPlugin(), Listener {
         menuLoader.loadAll()
         shopLoader.reload()
         pointShopLoader.reload()
+        popupMenuLoader.reload()
         announcementManager.reload()
         EconomyManager.init(this)
         TokenCurrencyManager.init(this)

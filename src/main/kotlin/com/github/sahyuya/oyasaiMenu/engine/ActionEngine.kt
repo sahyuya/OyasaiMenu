@@ -135,32 +135,11 @@ class ActionEngine(private val plugin: OyasaiMenu) {
                 }, 1L)
             }
 
-            ActionType.OPEN_UTILITY -> {
-                Bukkit.getScheduler().runTaskLater(plugin, Runnable {
-                    plugin.utilityEngine.openUtility(player)
-                }, 1L)
-            }
-
             ActionType.OPEN_MACRO -> {
                 Bukkit.getScheduler().runTaskLater(plugin, Runnable {
                     plugin.macroEngine.openMacroList(player)
                 }, 1L)
             }
-
-            ActionType.OPEN_INFO -> Bukkit.getScheduler().runTaskLater(plugin, Runnable {
-                plugin.infoEngine.openInfo(player) }, 1L)
-
-            ActionType.OPEN_CHANNEL -> Bukkit.getScheduler().runTaskLater(plugin, Runnable {
-                plugin.channelEngine.openChannel(player) }, 1L)
-
-            ActionType.OPEN_SOCIALIKES -> Bukkit.getScheduler().runTaskLater(plugin, Runnable {
-                plugin.socialLikesEngine.openSocialLikes(player) }, 1L)
-
-            ActionType.OPEN_CARBUILDER -> Bukkit.getScheduler().runTaskLater(plugin, Runnable {
-                plugin.carBuilderEngine.openCarBuilder(player) }, 1L)
-
-            ActionType.OPEN_LINKS -> Bukkit.getScheduler().runTaskLater(plugin, Runnable {
-                plugin.linksEngine.openLinks(player) }, 1L)
 
             ActionType.OPEN_SELL -> Bukkit.getScheduler().runTaskLater(plugin, Runnable {
                 plugin.sellEngine.openSellMenu(player) }, 1L)

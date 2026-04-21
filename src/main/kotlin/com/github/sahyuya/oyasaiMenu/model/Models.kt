@@ -56,7 +56,7 @@ enum class ActionType {
     OPEN_MACRO,
     OPEN_INFO,
     OPEN_CHANNEL,
-    OPEN_SOCIALIKES,
+    OPEN_SOCIALLIKES,
     OPEN_CARBUILDER,
     OPEN_LINKS,
     OPEN_SELL,

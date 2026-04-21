@@ -65,13 +65,14 @@ class PointShopLoader(private val plugin: OyasaiMenu) {
                 }
 
                 items[key] = PointShopItem(
-                    key      = key,
-                    icon     = icon,
-                    name     = sec.getString("name", "") ?: "",
-                    lore     = sec.getStringList("lore"),
-                    cost     = cost,
-                    message  = sec.getString("message", "&a&3${cost}&fP&7使用しました") ?: "",
-                    commands = sec.getStringList("commands")
+                    key             = key,
+                    icon            = icon,
+                    name            = sec.getString("name", "") ?: "",
+                    lore            = sec.getStringList("lore"),
+                    cost            = cost,
+                    message         = sec.getString("message", "&a&3${cost}&fP&7使用しました") ?: "",
+                    commands        = sec.getStringList("commands"),
+                    closeOnPurchase = sec.getBoolean("close-on-purchase", false)
                 )
                 loaded++
             }

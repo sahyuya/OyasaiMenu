@@ -1,0 +1,124 @@
+# VTPバイオーム指定メニュー (SocialLikes > バイオーム指定の3段階目)
+# リカバリーコンパスからアクセスする専用メニュー
+title: "&5バイオーム指定テレポート"
+glass: LIME_STAINED_GLASS_PANE
+nav_active: 49
+
+items:
+  plains:
+    slot: 0
+    icon: PLAYER_HEAD
+    texture: "a2c63ee7e30abb2d2ed4e5b5e4caae23c1e6b234a9c5e2e7fcbd0b9dab87dcc"
+    name: "&a平原 (Plains)"
+    lore: ["/vtp plains"]
+    actions:
+      - {player_cmd: "vtp plains"}
+      - {close: true}
+
+  forest:
+    slot: 1
+    icon: PLAYER_HEAD
+    texture: "89d61e39ca5d4fbd9a9da7a0dca60adf2abff72c3c8c38a45e63e1a68e06d"
+    name: "&2森林 (Forest)"
+    lore: ["/vtp forest"]
+    actions:
+      - {player_cmd: "vtp forest"}
+      - {close: true}
+
+  desert:
+    slot: 2
+    icon: PLAYER_HEAD
+    texture: "a6a97a4d2ec7ed24c9aea18ce52cf87a31a29c9bd3d2e1765ef0f39d5"
+    name: "&eデザート (Desert)"
+    lore: ["/vtp desert"]
+    actions:
+      - {player_cmd: "vtp desert"}
+      - {close: true}
+
+  taiga:
+    slot: 3
+    icon: PLAYER_HEAD
+    texture: "c7da319bc006a570c550846c0e8cf6ad88d326ec9f447d5c168228c4d2dd6e27"
+    name: "&bタイガ (Taiga)"
+    lore: ["/vtp taiga"]
+    actions:
+      - {player_cmd: "vtp taiga"}
+      - {close: true}
+
+  snowy_plains:
+    slot: 4
+    icon: PLAYER_HEAD
+    texture: "c7da319bc006a570c550846c0e8cf6ad88d326ec9f447d5c168228c4d2dd6e27"
+    name: "&f雪原 (Snowy Plains)"
+    lore: ["/vtp snowy_plains"]
+    actions:
+      - {player_cmd: "vtp snowy_plains"}
+      - {close: true}
+
+  jungle:
+    slot: 9
+    icon: PLAYER_HEAD
+    texture: "a2c63ee7e30abb2d2ed4e5b5e4caae23c1e6b234a9c5e2e7fcbd0b9dab87dcc"
+    name: "&2ジャングル (Jungle)"
+    lore: ["/vtp jungle"]
+    actions:
+      - {player_cmd: "vtp jungle"}
+      - {close: true}
+
+  savanna:
+    slot: 10
+    icon: PLAYER_HEAD
+    texture: "a2c63ee7e30abb2d2ed4e5b5e4caae23c1e6b234a9c5e2e7fcbd0b9dab87dcc"
+    name: "&6サバンナ (Savanna)"
+    lore: ["/vtp savanna"]
+    actions:
+      - {player_cmd: "vtp savanna"}
+      - {close: true}
+
+  swamp:
+    slot: 11
+    icon: PLAYER_HEAD
+    texture: "a2c63ee7e30abb2d2ed4e5b5e4caae23c1e6b234a9c5e2e7fcbd0b9dab87dcc"
+    name: "&2沼地 (Swamp)"
+    lore: ["/vtp swamp"]
+    actions:
+      - {player_cmd: "vtp swamp"}
+      - {close: true}
+
+  badlands:
+    slot: 12
+    icon: PLAYER_HEAD
+    texture: "a2c63ee7e30abb2d2ed4e5b5e4caae23c1e6b234a9c5e2e7fcbd0b9dab87dcc"
+    name: "&6荒地 (Badlands)"
+    lore: ["/vtp badlands"]
+    actions:
+      - {player_cmd: "vtp badlands"}
+      - {close: true}
+
+  ocean:
+    slot: 13
+    icon: PLAYER_HEAD
+    texture: "a2c63ee7e30abb2d2ed4e5b5e4caae23c1e6b234a9c5e2e7fcbd0b9dab87dcc"
+    name: "&9海 (Ocean)"
+    lore: ["/vtp ocean"]
+    actions:
+      - {player_cmd: "vtp ocean"}
+      - {close: true}
+
+  mushroom_fields:
+    slot: 14
+    icon: PLAYER_HEAD
+    texture: "a2c63ee7e30abb2d2ed4e5b5e4caae23c1e6b234a9c5e2e7fcbd0b9dab87dcc"
+    name: "&dキノコ島 (Mushroom Fields)"
+    lore: ["/vtp mushroom_fields"]
+    actions:
+      - {player_cmd: "vtp mushroom_fields"}
+      - {close: true}
+
+  back:
+    slot: 36
+    icon: ARROW
+    name: "&c← 戻る"
+    lore: ["&7SocialLikesメニューに戻ります"]
+    actions:
+      - {open_popup: "sociallikes"}

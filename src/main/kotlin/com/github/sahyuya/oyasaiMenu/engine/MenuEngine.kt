@@ -112,7 +112,27 @@ class MenuEngine(private val plugin: OyasaiMenu) : Listener {
             return
         }
 
-        // 通常モード: クリックされたスロットに対応するアイテムを探してアクション実行
+        // root メニューのナビバー (45〜53) クリックを PopupMenuEngine に委譲
+        if (state.menuId == "root" && slot in 45..53) {
+            when (slot) {
+                45 -> {
+                    // プレイヤーヘッド: 情報更新
+                    NavBar.apply(player.openInventory.topInventory, player, plugin, -1)
+                    player.playSound(player.location, org.bukkit.Sound.UI_BUTTON_CLICK, 0.5f, 1f)
+                }
+                else -> {
+                    val entry = NavBar.entries.find { it.slot == slot }
+                    if (entry != null) {
+                        Bukkit.getScheduler().runTaskLater(plugin, Runnable {
+                            plugin.popupMenuEngine.open(player, entry.popupId)
+                        }, 1L)
+                    }
+                }
+            }
+            return
+        }
+
+        // 通常モード
         val menuDef = plugin.menuLoader.getMenu(state.menuId) ?: return
         val itemDef = menuDef.items.values.find { it.slot == slot } ?: return
         plugin.actionEngine.executeActions(player, itemDef.actions, state)
@@ -157,6 +177,8 @@ class MenuEngine(private val plugin: OyasaiMenu) : Listener {
                     inv.setItem(i, glass)
                 }
             }
+            // ナビバー (45〜53) を描画 (YAML のアイテムより優先して上書き)
+            NavBar.apply(inv, player, plugin, activeSlot = -1)
         }
 
         return inv

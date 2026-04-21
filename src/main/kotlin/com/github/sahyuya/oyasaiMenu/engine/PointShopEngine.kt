@@ -205,10 +205,19 @@ class PointShopEngine(private val plugin: OyasaiMenu) : Listener {
         player.sendMessage(c(msg))
         player.playSound(player.location, org.bukkit.Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.2f)
 
-        // ★ 購入後はGUIを閉じる。
-        //   GUI を開いたままコマンドでアイテムを渡すと、チェストが開く演出などで
-        //   プレイヤーのインベントリ操作イベントが誤動作する場合があるため。
-        player.closeInventory()
+        // close-on-purchase: true のアイテムのみGUIを閉じる。
+        // それ以外はGUIを開いたままにして続けて購入できるようにする。
+        if (item.closeOnPurchase) {
+            player.closeInventory()
+        } else {
+            // GUI をリフレッシュして残高を更新
+            val newTokens = TokenCurrencyManager.getTokens(player)
+            val inv = player.openInventory.topInventory
+            category.getPage(state.page).forEachIndexed { i, it ->
+                inv.setItem(i, buildItemStack(player, it, newTokens))
+            }
+            buildBottomBar(inv, category, state, newTokens)
+        }
     }
 
     // ============================
