@@ -17,6 +17,9 @@ dependencies:
     PlaceholderAPI:
       load: BEFORE
       required: false
+    TokenManager:
+      load: BEFORE
+      required: false
     Vault:
       load: BEFORE
       required: false

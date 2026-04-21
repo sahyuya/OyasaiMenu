@@ -1,65 +1,102 @@
-# menus/root.yml - /menu で最初に開くトップメニュー
+# menus/root.yml
+# ポップアップ型総合メニュー
+#
+# ■ レイアウト
+#   行0〜4 (スロット 0〜44): 灰色ガラスのお知らせエリア
+#     (お知らせ内容は announcements.yml で設定)
+#   行5    (スロット 45〜53): ナビゲーションバー
+#     各ボタンは専用エンジン / メニューを開くアクションを持つ
 
 menu:
   id: root
-  title: "&8✦ 総合メニュー ✦"
+  title: "&8✦ おやさい鯖 メニュー ✦"
   size: 54
 
 items:
-  shop:
-    slot: 10
-    icon: CHEST
-    name: "&a⚙ ショップ"
+  # ========== 行5: ナビゲーションバー ==========
+  # (NavBarBuilder が実際の表示を担うため YAML ではアクションのみ定義)
+  # ※ MenuEngine は root を YAML ロードするが、ナビバーの ItemStack は
+  #   RootMenuEngine が上書き描画する。
+
+  nav_info:
+    slot: 45
+    icon: GRAY_STAINED_GLASS_PANE
+    name: "&f⚙ サーバー/個人情報"
     lore:
-      - "&7アイテムを売買できます"
-      - ""
-      - "&eクリックして開く"
+      - "&7TPS・残高・ポイントを確認"
     actions:
-      - type: open_menu
-        target: shop/index
+      - type: open_info
 
-  status:
-    slot: 13
-    icon: COMPASS
-    name: "&bサーバー情報"
+  nav_channel:
+    slot: 46
+    icon: RED_CONCRETE_POWDER
+    name: "&cチャンネルメニュー"
     lore:
-      - "&7TPS: &f%server_tps%"
-      - "&7オンライン: &f%online% 人"
+      - "&7チャットチャンネルを切り替え"
     actions:
-      - type: open_menu
-        target: system/status
+      - type: open_channel
 
-  macro:
-    slot: 16
-    icon: WRENCH
-    name: "&6コマンドマクロ"
+  nav_shop:
+    slot: 47
+    icon: ORANGE_CONCRETE_POWDER
+    name: "&6サーバーショップ"
     lore:
-      - "&7よく使うコマンドをワンクリックで実行"
+      - "&7アイテムの購入・売却"
     actions:
-      - type: open_menu
-        target: macro/list
+      - type: open_shop
+        category: ""
 
-  admin:
-    slot: 31
-    icon: COMMAND_BLOCK
-    name: "&c管理者メニュー"
-    permission: visualmenu.admin
+  nav_sell:
+    slot: 48
+    icon: YELLOW_CONCRETE_POWDER
+    name: "&e一括売却"
+    lore:
+      - "&7アイテムをまとめて売却"
+      - "&7(クリエイティブ不可)"
     actions:
-      - type: check_permission
-        permission: "visualmenu.admin"
-        success:
-          - type: open_menu
-            target: admin/editor
-        fail:
-          - type: message
-            text: "&c権限がありません。"
+      - type: open_sell
 
-  fill_tl:
-    slot: 0
-    icon: BLACK_STAINED_GLASS_PANE
-    name: " "
+  nav_socialikes:
+    slot: 49
+    icon: LIME_CONCRETE_POWDER
+    name: "&aSocialLikes"
+    lore:
+      - "&7建築の評価・探索"
+    actions:
+      - type: open_socialikes
 
-  fill_tr:
-    slot: 8
-    icon: BLACK_STAINED_GLASS_PANE
-    name: " "
+  nav_carbuilder:
+    slot: 50
+    icon: CYAN_CONCRETE_POWDER
+    name: "&bCarBuilder"
+    lore:
+      - "&7カービルダーメニュー"
+    actions:
+      - type: open_carbuilder
+
+  nav_utility:
+    slot: 51
+    icon: BLUE_CONCRETE_POWDER
+    name: "&9ユーティリティ"
+    lore:
+      - "&7コマンドショートカット集"
+    actions:
+      - type: open_utility
+
+  nav_macro:
+    slot: 52
+    icon: PURPLE_CONCRETE_POWDER
+    name: "&5マクロ"
+    lore:
+      - "&7自分専用コマンドマクロ"
+    actions:
+      - type: open_macro
+
+  nav_links:
+    slot: 53
+    icon: PINK_CONCRETE_POWDER
+    name: "&dリンク集"
+    lore:
+      - "&7Wiki・Discord・WebMAP など"
+    actions:
+      - type: open_links

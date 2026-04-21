@@ -1,4 +1,4 @@
-package com.github.sahyuya.oyasaiMenu.config
+package com.github.sahyuya.oyasaiMenu.loader
 
 import com.github.sahyuya.oyasaiMenu.OyasaiMenu
 import com.github.sahyuya.oyasaiMenu.model.*
@@ -8,36 +8,25 @@ import org.bukkit.configuration.file.YamlConfiguration
 import java.io.File
 
 /**
- * MenuConfigLoader
+ * MenuLoader (旧: MenuConfigLoader)
  *
- * plugins/OyasaiMenu/menus/ ディレクトリを再帰的に走査し、
- * 全 .yml ファイルを MenuDefinition としてロードする。
- *
- * ファイルパス (menus/ からの相対パス、拡張子除く) が
- * そのままメニューIDになる。
- *   例: menus/shop/blocks.yml → ID "shop/blocks"
- *
- * テンプレート (items/templates.yml) は全メニューより先に
- * 読み込むことで、他ファイルからの "extends:" を正しく解決できる。
+ * plugins/OyasaiMenu/menus/ を再帰スキャンし、
+ * 全 .yml を MenuDefinition としてロードする。
+ * ファイルパス (menus/ からの相対パス、拡張子除く) がメニューID。
+ *   例: menus/shop/index.yml → ID "shop/index"
  */
-class MenuConfigLoader(private val plugin: OyasaiMenu) {
+class MenuLoader(private val plugin: OyasaiMenu) {
 
     private val menus: MutableMap<String, MenuDefinition> = mutableMapOf()
     private val templates: MutableMap<String, MenuItemDefinition> = mutableMapOf()
-
-    // ============================
-    // 公開API
-    // ============================
 
     fun loadAll() {
         menus.clear()
         templates.clear()
 
-        // ① テンプレートを先にロード
         val templateFile = File(plugin.dataFolder, "items/templates.yml")
         if (templateFile.exists()) loadTemplates(templateFile)
 
-        // ② menus/ を再帰スキャン
         val menusDir = File(plugin.dataFolder, "menus")
         if (!menusDir.exists()) {
             menusDir.mkdirs()
@@ -45,7 +34,8 @@ class MenuConfigLoader(private val plugin: OyasaiMenu) {
             plugin.saveResource("menus/shop/index.yml", false)
             plugin.logger.info("menus/ を作成しデフォルトファイルを配置しました。")
         }
-        scanDirectory(menusDir, "")
+        // shops.yml / pointshop.yml はメニューではないのでスキップ
+        scanDirectory(menusDir, "", setOf("shops.yml", "pointshop.yml"))
         plugin.logger.info("${menus.size} 個のメニューをロードしました。")
     }
 
@@ -53,19 +43,14 @@ class MenuConfigLoader(private val plugin: OyasaiMenu) {
     fun getMenuCount(): Int = menus.size
     fun getAllMenuIds(): List<String> = menus.keys.toList()
 
-    // ============================
-    // 内部実装
-    // ============================
-
-    private fun scanDirectory(dir: File, prefix: String) {
+    private fun scanDirectory(dir: File, prefix: String, skipFiles: Set<String> = emptySet()) {
         dir.listFiles()?.sortedBy { it.name }?.forEach { file ->
             if (file.isDirectory) {
-                scanDirectory(file, "$prefix${file.name}/")
-            } else if (file.extension == "yml") {
+                scanDirectory(file, "$prefix${file.name}/", skipFiles)
+            } else if (file.extension == "yml" && file.name !in skipFiles) {
                 val menuId = "$prefix${file.nameWithoutExtension}"
                 runCatching {
                     menus[menuId] = loadMenuFile(file, menuId)
-                    plugin.logger.fine("ロード完了: $menuId")
                 }.onFailure {
                     plugin.logger.warning("メニューロード失敗: $menuId → ${it.message}")
                 }
@@ -79,14 +64,12 @@ class MenuConfigLoader(private val plugin: OyasaiMenu) {
             ?: throw IllegalArgumentException("'menu:' セクションがありません: ${file.name}")
 
         val title = menuSec.getString("title", "&8メニュー")!!
-        // サイズを 9 の倍数に丸める (9〜54)
         val rawSize = menuSec.getInt("size", 54).coerceIn(9, 54)
         val size = ((rawSize + 8) / 9) * 9
 
-        val itemsSec = yaml.getConfigurationSection("items")
         val items = buildMap<String, MenuItemDefinition> {
-            itemsSec?.getKeys(false)?.forEach { key ->
-                itemsSec.getConfigurationSection(key)?.let { sec ->
+            yaml.getConfigurationSection("items")?.getKeys(false)?.forEach { key ->
+                yaml.getConfigurationSection("items.$key")?.let { sec ->
                     put(key, parseItemDefinition(sec, key))
                 }
             }
@@ -95,7 +78,6 @@ class MenuConfigLoader(private val plugin: OyasaiMenu) {
     }
 
     private fun parseItemDefinition(section: ConfigurationSection, key: String): MenuItemDefinition {
-        // テンプレート継承: "extends: back_button" があれば base としてコピー
         val base: MenuItemDefinition = section.getString("extends")?.let { tid ->
             templates[tid] ?: MenuItemDefinition(slot = 0).also {
                 plugin.logger.warning("テンプレート未定義: $tid (アイテム: $key)")
@@ -103,16 +85,13 @@ class MenuConfigLoader(private val plugin: OyasaiMenu) {
         } ?: MenuItemDefinition(slot = 0)
 
         val slot = section.getInt("slot", base.slot)
-        val iconName = section.getString("icon", base.icon.name) ?: base.icon.name
-        val icon = runCatching { Material.valueOf(iconName.uppercase()) }.getOrElse {
-            plugin.logger.warning("不明なマテリアル: $iconName → STONE で代替 (アイテム: $key)")
-            Material.STONE
-        }
+        val icon = section.getString("icon", base.icon.name)?.uppercase()
+            ?.let { runCatching { Material.valueOf(it) }.getOrElse { Material.STONE } }
+            ?: base.icon
         val name = section.getString("name", base.name) ?: base.name
         val lore = section.getStringList("lore").ifEmpty { base.lore }
         val permission = section.getString("permission", base.permission)
-        val actions = if (section.contains("actions")) parseActions(section, "actions")
-        else base.actions
+        val actions = if (section.contains("actions")) parseActions(section, "actions") else base.actions
 
         return MenuItemDefinition(
             slot = slot, icon = icon, name = name, lore = lore,
@@ -122,21 +101,19 @@ class MenuConfigLoader(private val plugin: OyasaiMenu) {
     }
 
     @Suppress("UNCHECKED_CAST")
-    fun parseActions(section: ConfigurationSection, key: String): List<MenuAction> {
-        return (section.getList(key) ?: return emptyList())
+    fun parseActions(section: ConfigurationSection, key: String): List<MenuAction> =
+        (section.getList(key) ?: return emptyList())
             .filterIsInstance<Map<String, Any>>()
             .map { parseActionMap(it) }
-    }
 
     @Suppress("UNCHECKED_CAST")
     private fun parseActionMap(map: Map<String, Any>): MenuAction {
         val typeName = map["type"]?.toString()?.uppercase()?.replace("-", "_") ?: "UNKNOWN"
-        val type = runCatching { ActionType.valueOf(typeName) }
-            .getOrElse {
-                plugin.logger.warning("不明なアクションタイプ: ${map["type"]}")
-                ActionType.UNKNOWN
-            }
-        val params = map.filterKeys { it != "type" && it != "success" && it != "fail" }
+        val type = runCatching { ActionType.valueOf(typeName) }.getOrElse {
+            plugin.logger.warning("不明なアクションタイプ: ${map["type"]}")
+            ActionType.UNKNOWN
+        }
+        val params  = map.filterKeys { it !in setOf("type", "success", "fail") }
         val success = (map["success"] as? List<Map<String, Any>>)?.map { parseActionMap(it) } ?: emptyList()
         val fail    = (map["fail"]    as? List<Map<String, Any>>)?.map { parseActionMap(it) } ?: emptyList()
         return MenuAction(type = type, params = params, success = success, fail = fail)

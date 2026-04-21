@@ -52,7 +52,7 @@ class MenuEngine(private val plugin: OyasaiMenu) : Listener {
      * メインスレッドから呼び出すこと。
      */
     fun openMenu(player: Player, menuId: String, page: Int = 0) {
-        val menuDef = plugin.menuConfigLoader.getMenu(menuId)
+        val menuDef = plugin.menuLoader.getMenu(menuId)
         if (menuDef == null) {
             player.sendMessage(colorize("&cメニューが見つかりません: $menuId"))
             plugin.logger.warning("存在しないメニューID: $menuId (player=${player.name})")
@@ -74,7 +74,7 @@ class MenuEngine(private val plugin: OyasaiMenu) : Listener {
      * 通常表示との違いはインベントリ下段9スロットにツールバーが挿入される点。
      */
     fun openMenuInEditMode(player: Player, menuId: String) {
-        val menuDef = plugin.menuConfigLoader.getMenu(menuId) ?: run {
+        val menuDef = plugin.menuLoader.getMenu(menuId) ?: run {
             player.sendMessage(colorize("&cメニューが見つかりません: $menuId"))
             return
         }
@@ -98,8 +98,12 @@ class MenuEngine(private val plugin: OyasaiMenu) : Listener {
     fun onInventoryClick(event: InventoryClickEvent) {
         val player = event.whoClicked as? Player ?: return
         val state = playerStates[player.uniqueId.toString()] ?: return
-        // プレイヤー自身のインベントリへのクリックは無視
-        if (event.clickedInventory == player.inventory) return
+        // プレイヤー自身のインベントリへのクリックは無視。
+        // ただし Shift+クリックによるメニューGUIへのアイテム移動はキャンセルする。
+        if (event.clickedInventory == player.inventory) {
+            if (event.isShiftClick) event.isCancelled = true
+            return
+        }
         event.isCancelled = true
 
         val slot = event.rawSlot
@@ -109,7 +113,7 @@ class MenuEngine(private val plugin: OyasaiMenu) : Listener {
         }
 
         // 通常モード: クリックされたスロットに対応するアイテムを探してアクション実行
-        val menuDef = plugin.menuConfigLoader.getMenu(state.menuId) ?: return
+        val menuDef = plugin.menuLoader.getMenu(state.menuId) ?: return
         val itemDef = menuDef.items.values.find { it.slot == slot } ?: return
         plugin.actionEngine.executeActions(player, itemDef.actions, state)
     }
@@ -129,12 +133,32 @@ class MenuEngine(private val plugin: OyasaiMenu) : Listener {
         val title = applyPlaceholders(player, menuDef.title)
         val inv = Bukkit.createInventory(null, menuDef.size, colorizeComponent(title))
         menuDef.items.values.forEach { itemDef ->
-            // 権限チェック: permission が null の場合は全員に表示
             if (itemDef.permission != null && !player.hasPermission(itemDef.permission)) return@forEach
             if (itemDef.slot < menuDef.size) {
                 inv.setItem(itemDef.slot, buildItemStack(player, itemDef))
             }
         }
+
+        // root メニューは上部エリア (0〜44) を灰色ガラス + お知らせで埋める
+        if (menuDef.id == "root") {
+            val announcements = plugin.announcementManager.getAnnouncements()
+            for (i in 0..44) {
+                if (inv.getItem(i) == null) {
+                    val ann = announcements.getOrNull(i)
+                    val glass = org.bukkit.inventory.ItemStack(org.bukkit.Material.GRAY_STAINED_GLASS_PANE)
+                    val meta  = glass.itemMeta!!
+                    if (ann != null) {
+                        meta.displayName(colorizeComponent(ann.title))
+                        if (ann.body.isNotEmpty()) meta.lore(ann.body.map { colorizeComponent(it) })
+                    } else {
+                        meta.displayName(colorizeComponent(" "))
+                    }
+                    glass.itemMeta = meta
+                    inv.setItem(i, glass)
+                }
+            }
+        }
+
         return inv
     }
 

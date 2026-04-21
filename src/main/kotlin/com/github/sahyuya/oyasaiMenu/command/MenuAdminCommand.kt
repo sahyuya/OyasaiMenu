@@ -50,7 +50,7 @@ class MenuAdminCommand(private val plugin: OyasaiMenu) : BasicCommand {
 
             else -> {
                 val menuId = args[0].lowercase()
-                if (plugin.menuConfigLoader.getMenu(menuId) == null) {
+                if (plugin.menuLoader.getMenu(menuId) == null) {
                     player.sendMessage(plugin.menuEngine.colorize(
                         "&c'&e$menuId&c' が見つかりません。\n" +
                                 "&7作成: &f/menuedit create $menuId"
@@ -66,7 +66,7 @@ class MenuAdminCommand(private val plugin: OyasaiMenu) : BasicCommand {
     override fun suggest(source: CommandSourceStack, args: Array<out String>): List<String> {
         if (args.size != 1) return emptyList()
         val candidates = mutableListOf("create")
-        candidates += plugin.menuConfigLoader.getAllMenuIds()
+        candidates += plugin.menuLoader.getAllMenuIds()
         return candidates.filter { it.startsWith(args[0], ignoreCase = true) }
     }
 
@@ -107,7 +107,7 @@ class MenuAdminCommand(private val plugin: OyasaiMenu) : BasicCommand {
         }, Charsets.UTF_8)
 
         // 作成したファイルをリロードして即座に認識させる
-        plugin.menuConfigLoader.loadAll()
+        plugin.menuLoader.loadAll()
         player.sendMessage(plugin.menuEngine.colorize("&a新規メニュー作成: &e$menuId"))
         plugin.menuEngine.openMenuInEditMode(player, menuId)
     }

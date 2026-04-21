@@ -1,73 +1,126 @@
 package com.github.sahyuya.oyasaiMenu
 
 import com.github.sahyuya.oyasaiMenu.command.*
-import com.github.sahyuya.oyasaiMenu.config.MenuConfigLoader
-import com.github.sahyuya.oyasaiMenu.engine.ActionEngine
-import com.github.sahyuya.oyasaiMenu.engine.MenuEngine
-import com.github.sahyuya.oyasaiMenu.macro.MacroManager
-import com.github.sahyuya.oyasaiMenu.shop.EconomyManager
-import com.github.sahyuya.oyasaiMenu.shop.SellMenuEngine
-import com.github.sahyuya.oyasaiMenu.shop.ShopConfigLoader
-import com.github.sahyuya.oyasaiMenu.shop.ShopEngine
+import com.github.sahyuya.oyasaiMenu.engine.*
+import com.github.sahyuya.oyasaiMenu.loader.*
+import com.github.sahyuya.oyasaiMenu.manager.*
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerLoginEvent
 import org.bukkit.event.player.PlayerQuitEvent
 import org.bukkit.plugin.java.JavaPlugin
-import java.util.UUID
 
+/**
+ * OyasaiMenu エントリポイント
+ *
+ * ■ パッケージ構成
+ *   engine/  : MenuEngine, ActionEngine, NavBar, NavHandler,
+ *              InfoEngine, ChannelEngine, ShopEngine, SellEngine,
+ *              PointShopEngine, MacroEngine, UtilityEngine,
+ *              SocialLikesEngine, CarBuilderEngine, LinksEngine,
+ *              AdminEngine
+ *   loader/  : MenuLoader, ShopLoader, PointShopLoader
+ *   manager/ : EconomyManager, MacroManager, TokenCurrencyManager,
+ *              AnnouncementManager
+ *   command/ : MenuCommand, MenuAdminCommand, ShopCommand, SellCommand,
+ *              PointShopCommand, MacroCommand, AdminMenuCommand
+ *   model/   : Models, ShopModels, PointShopModels
+ */
 @Suppress("UnstableApiUsage")
 class OyasaiMenu : JavaPlugin(), Listener {
 
-    lateinit var menuConfigLoader: MenuConfigLoader
+    // ---- Loaders ----
+    lateinit var menuLoader: MenuLoader
+    lateinit var shopLoader: ShopLoader
+    lateinit var pointShopLoader: PointShopLoader
+
+    // ---- Managers ----
+    lateinit var macroManager: MacroManager
+    lateinit var announcementManager: AnnouncementManager
+
+    // ---- Nav (共有) ----
+    lateinit var navHandler: NavHandler
+
+    // ---- Engines ----
     lateinit var menuEngine: MenuEngine
     lateinit var actionEngine: ActionEngine
-    lateinit var macroManager: MacroManager
-    lateinit var shopConfigLoader: ShopConfigLoader
+    lateinit var infoEngine: InfoEngine
+    lateinit var channelEngine: ChannelEngine
     lateinit var shopEngine: ShopEngine
-    lateinit var sellMenuEngine: SellMenuEngine
+    lateinit var sellEngine: SellEngine
+    lateinit var pointShopEngine: PointShopEngine
+    lateinit var macroEngine: MacroEngine
+    lateinit var utilityEngine: UtilityEngine
+    lateinit var socialLikesEngine: SocialLikesEngine
+    lateinit var carBuilderEngine: CarBuilderEngine
+    lateinit var linksEngine: LinksEngine
+    lateinit var adminEngine: AdminEngine
 
     override fun onEnable() {
         saveDefaultConfig()
 
-        // コンポーネント初期化
-        menuConfigLoader  = MenuConfigLoader(this)
-        menuEngine        = MenuEngine(this)
-        actionEngine      = ActionEngine(this)
-        macroManager      = MacroManager(this)
-        shopConfigLoader  = ShopConfigLoader(this)
-        shopEngine        = ShopEngine(this)
-        sellMenuEngine    = SellMenuEngine(this)
+        // Loaders
+        menuLoader           = MenuLoader(this)
+        shopLoader           = ShopLoader(this)
+        pointShopLoader      = PointShopLoader(this)
+
+        // Managers
+        macroManager         = MacroManager(this)
+        announcementManager  = AnnouncementManager(this)
+
+        // Engines (NavHandler は他エンジンを参照するので最後)
+        menuEngine           = MenuEngine(this)
+        actionEngine         = ActionEngine(this)
+        infoEngine           = InfoEngine(this)
+        channelEngine        = ChannelEngine(this)
+        shopEngine           = ShopEngine(this)
+        sellEngine           = SellEngine(this)
+        pointShopEngine      = PointShopEngine(this)
+        macroEngine          = MacroEngine(this)
+        utilityEngine        = UtilityEngine(this)
+        socialLikesEngine    = SocialLikesEngine(this)
+        carBuilderEngine     = CarBuilderEngine(this)
+        linksEngine          = LinksEngine(this)
+        adminEngine          = AdminEngine(this)
+        navHandler           = NavHandler(this)   // ← 全エンジン初期化後
 
         // データロード
-        menuConfigLoader.loadAll()
-        shopConfigLoader.loadAll()
+        menuLoader.loadAll()
+        shopLoader.loadAll()
+        pointShopLoader.loadAll()
+        announcementManager.loadAll()
         EconomyManager.init(this)
+        TokenCurrencyManager.init(this)
 
         // Paper 式コマンド登録
         lifecycleManager.registerEventHandler(LifecycleEvents.COMMANDS) { event ->
             val reg = event.registrar()
-
-            // /menu (/m)
-            reg.register("menu",     "メニューを開く",           listOf("m"),        MenuCommand(this))
-            // /menuedit
-            reg.register("menuedit", "メニューを編集モードで開く", emptyList(),        MenuAdminCommand(this))
-            // /shop (/sh) — カテゴリ指定でショップを直接開く
-            reg.register("shop",     "ショップを開く",            listOf("sh"),       ShopCommand(this))
-            // /sell — 一括売却GUI、またはその場売却
-            reg.register("sell",     "アイテムを売却する",         emptyList(),        SellCommand(this))
+            reg.register("menu",       "メニューを開く",              listOf("m"),       MenuCommand(this))
+            reg.register("menuedit",   "メニューを編集モードで開く",   emptyList(),       MenuAdminCommand(this))
+            reg.register("shop",       "ショップを開く",               listOf("sh"),      ShopCommand(this))
+            reg.register("sell",       "アイテムを売却する",           emptyList(),       SellCommand(this))
+            reg.register("pshop",      "ポイントショップを開く",        listOf("ps"),      PointShopCommand(this))
+            reg.register("macro",      "コマンドマクロを管理・実行する", emptyList(),      MacroCommand(this))
+            reg.register("adminmenu",  "管理者メニューを開く",          listOf("admenu"), AdminMenuCommand(this))
         }
 
         // イベントリスナー登録
-        server.pluginManager.registerEvents(menuEngine,     this)
-        server.pluginManager.registerEvents(shopEngine,     this)
-        server.pluginManager.registerEvents(sellMenuEngine, this)
-        server.pluginManager.registerEvents(this,           this)
+        listOf(
+            menuEngine, infoEngine, channelEngine,
+            shopEngine, sellEngine, pointShopEngine,
+            macroEngine, utilityEngine,
+            socialLikesEngine, carBuilderEngine, linksEngine,
+            adminEngine, this
+        ).forEach { server.pluginManager.registerEvents(it as org.bukkit.event.Listener, this) }
 
-        logger.info("OyasaiMenu が有効になりました。" +
-                "メニュー: ${menuConfigLoader.getMenuCount()} / " +
-                "ショップカテゴリ: ${shopConfigLoader.getAllCategories().size}")
+        logger.info(
+            "OyasaiMenu 起動完了 | " +
+                    "メニュー:${menuLoader.getMenuCount()} " +
+                    "ショップ:${shopLoader.getAllCategories().size} " +
+                    "Pショップ:${pointShopLoader.getAllCategories().size} " +
+                    "お知らせ:${announcementManager.getAnnouncements().size}"
+        )
     }
 
     override fun onDisable() {
@@ -88,9 +141,12 @@ class OyasaiMenu : JavaPlugin(), Listener {
             macroManager.savePlayer(p.uniqueId)
             macroManager.loadPlayer(p.uniqueId)
         }
-        menuConfigLoader.loadAll()
-        shopConfigLoader.reload()
+        menuLoader.loadAll()
+        shopLoader.reload()
+        pointShopLoader.reload()
+        announcementManager.reload()
         EconomyManager.init(this)
+        TokenCurrencyManager.init(this)
         logger.info("OyasaiMenu をリロードしました。")
     }
 }

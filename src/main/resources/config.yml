@@ -28,3 +28,10 @@ macro:
 
 placeholders:
   server-name: "MyServer"
+
+# ユーティリティ画面の設定
+utility:
+  # ワープボタンに表示するワープ先一覧
+  # (例: ["spawn", "hub", "market"] )
+  warps:
+    - spawn

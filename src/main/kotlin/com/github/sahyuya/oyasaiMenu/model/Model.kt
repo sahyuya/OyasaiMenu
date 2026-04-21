@@ -3,13 +3,9 @@ package com.github.sahyuya.oyasaiMenu.model
 import org.bukkit.Material
 
 // ============================================================
-// メニュー定義 (YAML 1ファイル = 1 MenuDefinition)
+// メニュー定義モデル
 // ============================================================
 
-/**
- * 1つのメニュー画面を表すデータクラス。
- * YAML の "menu:" セクションと "items:" セクションを合わせたもの。
- */
 data class MenuDefinition(
     val id: String,
     val title: String,
@@ -17,14 +13,6 @@ data class MenuDefinition(
     val items: Map<String, MenuItemDefinition> = emptyMap()
 )
 
-// ============================================================
-// メニュー内の各アイテム定義
-// ============================================================
-
-/**
- * メニュー内に配置する1つのアイテムを表す。
- * template フィールドで継承元テンプレートIDを持つ。
- */
 data class MenuItemDefinition(
     val slot: Int,
     val icon: Material = Material.STONE,
@@ -40,10 +28,13 @@ data class MenuItemDefinition(
 // ============================================================
 
 /**
- * アクションの種類を表す列挙型。
- * 設計書の "actions:" セクションに対応。
+ * アクションタイプ。
+ * 新規追加時は ActionEngine の when にも必ずブランチを追加すること。
+ * (Kotlin の sealed-like exhaustive チェック対策として else を持つが
+ *  新アクションは明示的に追加することを推奨)
  */
 enum class ActionType {
+    // ---- 基本 ----
     OPEN_MENU,
     RUN_COMMAND,
     RUN_PLAYER_COMMAND,
@@ -53,16 +44,27 @@ enum class ActionType {
     MACRO_EXECUTE,
     PLACEHOLDER_TEXT,
     DISCORD_FETCH,
-    OPEN_SHOP,
     SOUND,
     BROADCAST,
+
+    // ---- ショップ系 ----
+    OPEN_SHOP,
+    OPEN_POINT_SHOP,
+
+    // ---- 専用エンジン ----
+    OPEN_UTILITY,
+    OPEN_MACRO,
+    OPEN_INFO,
+    OPEN_CHANNEL,
+    OPEN_SOCIALIKES,
+    OPEN_CARBUILDER,
+    OPEN_LINKS,
+    OPEN_SELL,
+
+    // ---- 未定義 ----
     UNKNOWN
 }
 
-/**
- * 1つのアクションを表す汎用データクラス。
- * check_permission の success/fail は再帰的なリストで表現する。
- */
 data class MenuAction(
     val type: ActionType,
     val params: Map<String, Any> = emptyMap(),
@@ -71,10 +73,8 @@ data class MenuAction(
 ) {
     fun getString(key: String, default: String = ""): String =
         params[key]?.toString() ?: default
-
     fun getInt(key: String, default: Int = 0): Int =
         params[key]?.toString()?.toIntOrNull() ?: default
-
     fun getBoolean(key: String, default: Boolean = false): Boolean =
         params[key]?.toString()?.toBooleanStrictOrNull() ?: default
 }
@@ -83,7 +83,6 @@ data class MenuAction(
 // プレイヤー状態管理
 // ============================================================
 
-/** プレイヤーが現在開いているメニューの状態 */
 data class PlayerMenuState(
     val menuId: String,
     val page: Int = 0,
@@ -95,10 +94,6 @@ data class PlayerMenuState(
 // コマンドマクロ
 // ============================================================
 
-/**
- * プレイヤーが自分で作成・実行できるコマンドマクロ。
- * YAML への永続化は MacroManager が担当する。
- */
 data class PlayerMacro(
     val id: String,
     val name: String,

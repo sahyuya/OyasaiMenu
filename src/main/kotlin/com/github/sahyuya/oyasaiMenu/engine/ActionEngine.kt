@@ -125,8 +125,52 @@ class ActionEngine(private val plugin: OyasaiMenu) {
                 }, 1L)
             }
 
+            ActionType.OPEN_POINT_SHOP -> {
+                val category = action.getString("category", "")
+                Bukkit.getScheduler().runTaskLater(plugin, Runnable {
+                    val catId = if (category.isEmpty())
+                        plugin.pointShopLoader.getAllCategories().keys.firstOrNull() ?: return@Runnable
+                    else category
+                    plugin.pointShopEngine.openShop(player, catId)
+                }, 1L)
+            }
+
+            ActionType.OPEN_UTILITY -> {
+                Bukkit.getScheduler().runTaskLater(plugin, Runnable {
+                    plugin.utilityEngine.openUtility(player)
+                }, 1L)
+            }
+
+            ActionType.OPEN_MACRO -> {
+                Bukkit.getScheduler().runTaskLater(plugin, Runnable {
+                    plugin.macroEngine.openMacroList(player)
+                }, 1L)
+            }
+
+            ActionType.OPEN_INFO -> Bukkit.getScheduler().runTaskLater(plugin, Runnable {
+                plugin.infoEngine.openInfo(player) }, 1L)
+
+            ActionType.OPEN_CHANNEL -> Bukkit.getScheduler().runTaskLater(plugin, Runnable {
+                plugin.channelEngine.openChannel(player) }, 1L)
+
+            ActionType.OPEN_SOCIALIKES -> Bukkit.getScheduler().runTaskLater(plugin, Runnable {
+                plugin.socialLikesEngine.openSocialLikes(player) }, 1L)
+
+            ActionType.OPEN_CARBUILDER -> Bukkit.getScheduler().runTaskLater(plugin, Runnable {
+                plugin.carBuilderEngine.openCarBuilder(player) }, 1L)
+
+            ActionType.OPEN_LINKS -> Bukkit.getScheduler().runTaskLater(plugin, Runnable {
+                plugin.linksEngine.openLinks(player) }, 1L)
+
+            ActionType.OPEN_SELL -> Bukkit.getScheduler().runTaskLater(plugin, Runnable {
+                plugin.sellEngine.openSellMenu(player) }, 1L)
+
             ActionType.UNKNOWN ->
                 plugin.logger.warning("未知のアクション: player=${player.name}")
+
+            // ★ else ブランチ: 将来の enum 追加時のコンパイルエラー防止
+            //   新アクション追加時は上記に明示的ブランチを追加すること
+            else -> plugin.logger.warning("未処理のアクションタイプ: ${action.type} (player=${player.name})")
         }
     }
 
@@ -180,7 +224,7 @@ class ActionEngine(private val plugin: OyasaiMenu) {
      * タブ: 基本 / アクション / 条件 / 表示 / 高度
      */
     fun openItemEditor(player: Player, menuId: String, slot: Int) {
-        val menuDef = plugin.menuConfigLoader.getMenu(menuId) ?: return
+        val menuDef = plugin.menuLoader.getMenu(menuId) ?: return
         val itemDef = menuDef.items.values.find { it.slot == slot }
 
         val inv = Bukkit.createInventory(null, 54,

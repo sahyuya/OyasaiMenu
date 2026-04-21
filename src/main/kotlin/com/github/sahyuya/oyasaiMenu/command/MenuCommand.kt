@@ -53,7 +53,7 @@ class MenuCommand(private val plugin: OyasaiMenu) : BasicCommand {
                 }
                 plugin.reload()
                 player.sendMessage(plugin.menuEngine.colorize(
-                    "&aリロードしました。(${plugin.menuConfigLoader.getMenuCount()} 個)"
+                    "&aリロードしました。(${plugin.menuLoader.getMenuCount()} 個)"
                 ))
             }
 
@@ -62,7 +62,7 @@ class MenuCommand(private val plugin: OyasaiMenu) : BasicCommand {
                     player.sendMessage(plugin.menuEngine.colorize("&cこのサブコマンドは管理者のみ使用できます。"))
                     return
                 }
-                val ids = plugin.menuConfigLoader.getAllMenuIds().sorted()
+                val ids = plugin.menuLoader.getAllMenuIds().sorted()
                 player.sendMessage(plugin.menuEngine.colorize("&b--- ロード済みメニュー (${ids.size}) ---"))
                 ids.forEach { player.sendMessage(plugin.menuEngine.colorize("&7- $it")) }
             }
@@ -80,7 +80,7 @@ class MenuCommand(private val plugin: OyasaiMenu) : BasicCommand {
         if (args.size != 1) return emptyList()
 
         val candidates = mutableListOf("reload", "list")
-        candidates += plugin.menuConfigLoader.getAllMenuIds()
+        candidates += plugin.menuLoader.getAllMenuIds()
         return candidates.filter { it.startsWith(args[0], ignoreCase = true) }
     }
 }

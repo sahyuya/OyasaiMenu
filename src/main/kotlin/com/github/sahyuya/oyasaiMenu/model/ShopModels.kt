@@ -1,6 +1,7 @@
 package com.github.sahyuya.oyasaiMenu.model
 
 import org.bukkit.Material
+import org.bukkit.enchantments.Enchantment
 
 // ============================================================
 // ショップ定義モデル
@@ -59,7 +60,13 @@ data class ShopItem(
     val material: Material?,
     val materialId: String,
     val buyPrice: Double,
-    val sellPrice: Double
+    val sellPrice: Double,
+    /** カスタムアイテム ($キー参照) の表示名。null のときはバニラ名を使う */
+    val customName: String? = null,
+    /** カスタムアイテムの Lore。空リストのときは Lore なし */
+    val customLore: List<String> = emptyList(),
+    /** カスタムアイテムに付与するエンチャントマップ (Enchantment → レベル) */
+    val enchantments: Map<Enchantment, Int> = emptyMap()
 ) {
     val canBuy: Boolean get() = material != null && buyPrice > 0
     val canSell: Boolean get() = material != null && sellPrice > 0

@@ -1,66 +1,77 @@
-# menus/shop/index.yml - ショップカテゴリ一覧
-# /shop または /sh で開かれるトップページ
+# menus/shop/index.yml
+# ショップカテゴリ選択画面 (6行全てショップ用)
+#
+# ショップは専用の ShopEngine が描画するため、
+# このファイルは shop/index の「カテゴリ選択ボタン」のみを定義する。
+# 下1列はShopEngine内で「戻る+ページング+数量」で占有される。
 
 menu:
   id: shop/index
-  title: "&6⚙ ショップ"
+  title: "&6⚙ サーバーショップ"
   size: 54
 
 items:
   blocks:
-    slot: 10
-    icon: GRASS_BLOCK
-    name: "&1ブロック"
+    slot: 1
+    icon: BRICKS
+    name: "&aブロックショップ"
     lore:
+      - "&7各種建築ブロック"
       - "&7/shop blocks でも開けます"
     actions:
       - type: open_shop
         category: blocks
 
   decorations:
-    slot: 11
+    slot: 2
     icon: FLOWER_POT
-    name: "&1装飾"
+    name: "&b装飾ショップ"
     lore:
+      - "&7装飾・植物アイテム"
       - "&7/shop decorations でも開けます"
     actions:
       - type: open_shop
         category: decorations
 
   ores:
-    slot: 12
+    slot: 3
     icon: DIAMOND_ORE
-    name: "&1鉱石"
+    name: "&e鉱石ショップ"
     lore:
+      - "&7鉱石・資源アイテム"
       - "&7/shop ores でも開けます"
     actions:
       - type: open_shop
         category: ores
 
-  redstone:
-    slot: 13
-    icon: REDSTONE
-    name: "&1レッドストーン"
-    lore:
-      - "&7/shop redstone でも開けます"
-    actions:
-      - type: open_shop
-        category: redstone
-
   tools:
-    slot: 14
+    slot: 4
     icon: DIAMOND_PICKAXE
-    name: "&1ツール"
+    name: "&6ツールショップ"
     lore:
+      - "&7エンチャント済みツール類"
       - "&7/shop tools でも開けます"
     actions:
       - type: open_shop
         category: tools
 
+  pointshop:
+    slot: 5
+    icon: NETHER_STAR
+    name: "&6★ ポイントショップ"
+    lore:
+      - "&7TokenManager ポイントで購入"
+      - "&7/pshop でも開けます"
+    actions:
+      - type: open_point_shop
+        category: utilities
+
   back:
     slot: 49
     icon: ARROW
     name: "&c← 戻る"
+    lore:
+      - "&7総合メニューに戻ります"
     actions:
       - type: open_menu
         target: root
