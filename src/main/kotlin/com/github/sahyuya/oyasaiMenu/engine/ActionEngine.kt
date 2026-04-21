@@ -46,12 +46,16 @@ class ActionEngine(private val plugin: OyasaiMenu) {
             ActionType.OPEN_MENU -> {
                 val target = action.getString("target")
                 if (target.isEmpty()) {
-                    plugin.logger.warning("open_menu にターゲットが未指定。")
-                    return
+                    plugin.logger.warning("open_menu にターゲットが未指定。"); return
                 }
-                // 同フレームに openInventory を2回呼ぶと不具合になるため1tick遅延
                 Bukkit.getScheduler().runTaskLater(plugin, Runnable {
-                    plugin.menuEngine.openMenu(player, target)
+                    // popup/ プレフィックスがある場合や PopupMenuLoader に登録済みなら popupMenuEngine へ委譲
+                    val popupId = target.removePrefix("popup/")
+                    if (plugin.popupMenuLoader.getPopup(popupId) != null) {
+                        plugin.popupMenuEngine.open(player, popupId)
+                    } else {
+                        plugin.menuEngine.openMenu(player, target)
+                    }
                 }, 1L)
             }
 
@@ -115,7 +119,7 @@ class ActionEngine(private val plugin: OyasaiMenu) {
                 Bukkit.getScheduler().runTaskLater(plugin, Runnable {
                     if (category.isEmpty()) {
                         // カテゴリ未指定 → ショップ一覧メニューを開く
-                        plugin.menuEngine.openMenu(player, "shop/index")
+                        plugin.popupMenuEngine.open(player, "shopindex")
                     } else {
                         // カテゴリ指定 → ShopEngine 経由でショップGUIを直接開く
                         // ※ menuEngine.openMenu("shop/blocks") ではなく shopEngine.openShop() を呼ぶ。
@@ -135,11 +139,8 @@ class ActionEngine(private val plugin: OyasaiMenu) {
                 }, 1L)
             }
 
-            ActionType.OPEN_UTILITY -> {
-                Bukkit.getScheduler().runTaskLater(plugin, Runnable {
-                    plugin.utilityEngine.openUtility(player)
-                }, 1L)
-            }
+            ActionType.OPEN_UTILITY -> Bukkit.getScheduler().runTaskLater(plugin, Runnable {
+                plugin.popupMenuEngine.open(player, "utility") }, 1L)
 
             ActionType.OPEN_MACRO -> {
                 Bukkit.getScheduler().runTaskLater(plugin, Runnable {
@@ -148,19 +149,20 @@ class ActionEngine(private val plugin: OyasaiMenu) {
             }
 
             ActionType.OPEN_INFO -> Bukkit.getScheduler().runTaskLater(plugin, Runnable {
-                plugin.infoEngine.openInfo(player) }, 1L)
+                // InfoEngine 廃止 → slot45 はナビバーで常時表示。ここでは root を開くだけ
+                plugin.menuEngine.openMenu(player, "root") }, 1L)
 
             ActionType.OPEN_CHANNEL -> Bukkit.getScheduler().runTaskLater(plugin, Runnable {
-                plugin.channelEngine.openChannel(player) }, 1L)
+                plugin.popupMenuEngine.open(player, "channel") }, 1L)
 
-            ActionType.OPEN_SOCIALIKES -> Bukkit.getScheduler().runTaskLater(plugin, Runnable {
-                plugin.socialLikesEngine.openSocialLikes(player) }, 1L)
+            ActionType.OPEN_SOCIALLIKES -> Bukkit.getScheduler().runTaskLater(plugin, Runnable {
+                plugin.popupMenuEngine.open(player, "sociallikes") }, 1L)
 
             ActionType.OPEN_CARBUILDER -> Bukkit.getScheduler().runTaskLater(plugin, Runnable {
-                plugin.carBuilderEngine.openCarBuilder(player) }, 1L)
+                plugin.popupMenuEngine.open(player, "carbuilder") }, 1L)
 
             ActionType.OPEN_LINKS -> Bukkit.getScheduler().runTaskLater(plugin, Runnable {
-                plugin.linksEngine.openLinks(player) }, 1L)
+                plugin.popupMenuEngine.open(player, "links") }, 1L)
 
             ActionType.OPEN_SELL -> Bukkit.getScheduler().runTaskLater(plugin, Runnable {
                 plugin.sellEngine.openSellMenu(player) }, 1L)

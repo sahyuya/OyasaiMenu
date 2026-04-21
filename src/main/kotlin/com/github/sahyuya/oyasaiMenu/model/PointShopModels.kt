@@ -59,7 +59,13 @@ data class PointShopItem(
     val lore: List<String>,
     val cost: Long,
     val message: String,
-    val commands: List<String>
+    val commands: List<String>,
+    /**
+     * true = 購入後にGUIを閉じる (例: シュルカーボックスを開くアイテムなど)。
+     * pointshop.yml の各アイテムに "close-on-purchase: true" を追加することで設定。
+     * デフォルト false = 購入後もGUIを開いたままにする。
+     */
+    val closeOnPurchase: Boolean = false
 )
 
 /** ポイントショップのプレイヤー状態 */

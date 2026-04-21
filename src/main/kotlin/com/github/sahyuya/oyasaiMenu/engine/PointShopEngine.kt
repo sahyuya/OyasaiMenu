@@ -1,6 +1,7 @@
 package com.github.sahyuya.oyasaiMenu.engine
 
 import com.github.sahyuya.oyasaiMenu.OyasaiMenu
+import com.github.sahyuya.oyasaiMenu.manager.EconomyManager
 import com.github.sahyuya.oyasaiMenu.manager.TokenCurrencyManager
 import com.github.sahyuya.oyasaiMenu.model.PlayerPointShopState
 import com.github.sahyuya.oyasaiMenu.model.PointShopCategory
@@ -74,7 +75,7 @@ class PointShopEngine(private val plugin: OyasaiMenu) : Listener {
         category.getPage(state.page).forEachIndexed { i, item ->
             inv.setItem(i, buildItemStack(player, item, tokens))
         }
-        buildBottomBar(inv, category, state, tokens)
+        buildBottomBar(inv, player, category, state, tokens)
         return inv
     }
 
@@ -87,12 +88,14 @@ class PointShopEngine(private val plugin: OyasaiMenu) : Listener {
             meta.displayName(comp(item.name.replace("%player%", player.name)))
         }
 
-        // Lore: %tokens%, %price% を展開
+        // Lore: %tokens%, %price%, %balance% を展開
+        val balance = if (EconomyManager.isAvailable) EconomyManager.getBalance(player) else 0.0
         val lore = item.lore.map { line ->
             comp(line
-                .replace("%player%", player.name)
-                .replace("%tokens%", TokenCurrencyManager.format(tokens))
-                .replace("%price%",  TokenCurrencyManager.format(item.cost))
+                .replace("%player%",  player.name)
+                .replace("%tokens%",  TokenCurrencyManager.format(tokens))
+                .replace("%price%",   TokenCurrencyManager.format(item.cost))
+                .replace("%balance%", if (EconomyManager.isAvailable) EconomyManager.format(balance) else "---")
             )
         }.toMutableList()
 
@@ -110,7 +113,7 @@ class PointShopEngine(private val plugin: OyasaiMenu) : Listener {
         return stack
     }
 
-    private fun buildBottomBar(inv: Inventory, category: PointShopCategory, state: PlayerPointShopState, tokens: Long) {
+    private fun buildBottomBar(inv: Inventory, player: Player, category: PointShopCategory, state: PlayerPointShopState, tokens: Long) {
         val glass = makeItem(Material.BLACK_STAINED_GLASS_PANE, " ")
         listOf(46, 48, 50, 52).forEach { inv.setItem(it, glass) }
 
@@ -133,11 +136,18 @@ class PointShopEngine(private val plugin: OyasaiMenu) : Listener {
             if (hasNext) "&e次のページ →" else "&8次のページなし"
         ))
 
-        // [53] ポイント残高表示
+        // [53] ポイント & 所持金残高表示
+        val balStr = if (EconomyManager.isAvailable)
+            EconomyManager.format(EconomyManager.getBalance(player)) else "---"
         inv.setItem(53, makeItem(
             Material.NETHER_STAR,
-            "&6所持ポイント: &f${TokenCurrencyManager.format(tokens)}P",
-            listOf("&7TokenManager ポイント残高")
+            "&6ポイント: &f${TokenCurrencyManager.format(tokens)}P",
+            listOf(
+                "&7所持ポイント: &f${TokenCurrencyManager.format(tokens)}P",
+                "&7所持金: &f$balStr",
+                "",
+                "&eクリックで残高を更新"
+            )
         ))
     }
 
@@ -164,7 +174,14 @@ class PointShopEngine(private val plugin: OyasaiMenu) : Listener {
             47 -> changePage(player, state, category, state.page - 1)
             49 -> { /* ページ表示 */ }
             51 -> changePage(player, state, category, state.page + 1)
-            53 -> { /* ポイント表示: 何もしない */ }
+            53 -> {
+                // ポイント & Vault 残高の再取得・表示更新
+                val newTokens = TokenCurrencyManager.getTokens(player)
+                val inv2 = player.openInventory.topInventory
+                val cat2 = plugin.pointShopLoader.getCategory(state.categoryId) ?: return
+                buildBottomBar(inv2, player, cat2, state, newTokens)
+                player.playSound(player.location, org.bukkit.Sound.UI_BUTTON_CLICK, 0.5f, 1f)
+            }
             in 0..44 -> {
                 if (!event.isLeftClick) return
                 val item = category.getPage(state.page).getOrNull(slot) ?: return
@@ -205,10 +222,19 @@ class PointShopEngine(private val plugin: OyasaiMenu) : Listener {
         player.sendMessage(c(msg))
         player.playSound(player.location, org.bukkit.Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.2f)
 
-        // ★ 購入後はGUIを閉じる。
-        //   GUI を開いたままコマンドでアイテムを渡すと、チェストが開く演出などで
-        //   プレイヤーのインベントリ操作イベントが誤動作する場合があるため。
-        player.closeInventory()
+        // close-on-purchase: true のアイテムのみGUIを閉じる。
+        // それ以外はGUIを開いたままにして続けて購入できるようにする。
+        if (item.closeOnPurchase) {
+            player.closeInventory()
+        } else {
+            // GUI をリフレッシュして残高を更新
+            val newTokens = TokenCurrencyManager.getTokens(player)
+            val inv = player.openInventory.topInventory
+            category.getPage(state.page).forEachIndexed { i, it ->
+                inv.setItem(i, buildItemStack(player, it, newTokens))
+            }
+            buildBottomBar(inv, player, category, state, newTokens)
+        }
     }
 
     // ============================
@@ -226,7 +252,7 @@ class PointShopEngine(private val plugin: OyasaiMenu) : Listener {
     private fun handleBack(player: Player) {
         player.closeInventory()
         Bukkit.getScheduler().runTaskLater(plugin, Runnable {
-            plugin.menuEngine.openMenu(player, "shop/index")
+            plugin.popupMenuEngine.open(player, "shopindex")
         }, 1L)
     }
 

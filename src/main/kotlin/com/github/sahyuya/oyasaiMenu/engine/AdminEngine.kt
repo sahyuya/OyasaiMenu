@@ -1,6 +1,7 @@
 package com.github.sahyuya.oyasaiMenu.engine
 
 import com.github.sahyuya.oyasaiMenu.OyasaiMenu
+import com.github.sahyuya.oyasaiMenu.manager.CooldownManager
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
 import org.bukkit.Bukkit
@@ -68,6 +69,7 @@ class AdminEngine(private val plugin: OyasaiMenu) : Listener {
             if (event.isShiftClick) event.isCancelled = true; return
         }
         event.isCancelled = true
+        if (CooldownManager.isClickOnCooldown(player.uniqueId)) return
         when (event.rawSlot) {
             10 -> {
                 plugin.reload()

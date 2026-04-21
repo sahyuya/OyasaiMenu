@@ -31,7 +31,6 @@ class MenuLoader(private val plugin: OyasaiMenu) {
         if (!menusDir.exists()) {
             menusDir.mkdirs()
             plugin.saveResource("menus/root.yml", false)
-            plugin.saveResource("menus/shop/index.yml", false)
             plugin.logger.info("menus/ を作成しデフォルトファイルを配置しました。")
         }
         // shops.yml / pointshop.yml はメニューではないのでスキップ
@@ -46,6 +45,8 @@ class MenuLoader(private val plugin: OyasaiMenu) {
     private fun scanDirectory(dir: File, prefix: String, skipFiles: Set<String> = emptySet()) {
         dir.listFiles()?.sortedBy { it.name }?.forEach { file ->
             if (file.isDirectory) {
+                // popup/ ディレクトリは PopupMenuLoader が管理するのでスキップ
+                if (file.name == "popup") return@forEach
                 scanDirectory(file, "$prefix${file.name}/", skipFiles)
             } else if (file.extension == "yml" && file.name !in skipFiles) {
                 val menuId = "$prefix${file.nameWithoutExtension}"

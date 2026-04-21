@@ -1,6 +1,7 @@
 package com.github.sahyuya.oyasaiMenu.engine
 
 import com.github.sahyuya.oyasaiMenu.OyasaiMenu
+import com.github.sahyuya.oyasaiMenu.manager.CooldownManager
 import com.github.sahyuya.oyasaiMenu.model.MenuDefinition
 import com.github.sahyuya.oyasaiMenu.model.MenuItemDefinition
 import com.github.sahyuya.oyasaiMenu.model.PlayerMenuState
@@ -105,6 +106,7 @@ class MenuEngine(private val plugin: OyasaiMenu) : Listener {
             return
         }
         event.isCancelled = true
+        if (CooldownManager.isClickOnCooldown(player.uniqueId)) return
 
         val slot = event.rawSlot
         if (state.isEditing) {
@@ -112,7 +114,27 @@ class MenuEngine(private val plugin: OyasaiMenu) : Listener {
             return
         }
 
-        // 通常モード: クリックされたスロットに対応するアイテムを探してアクション実行
+        // root メニューのナビバー (45〜53) クリックを PopupMenuEngine に委譲
+        if (state.menuId == "root" && slot in 45..53) {
+            when (slot) {
+                45 -> {
+                    // プレイヤーヘッド: 情報更新
+                    NavBar.apply(player.openInventory.topInventory, player, plugin, -1)
+                    player.playSound(player.location, org.bukkit.Sound.UI_BUTTON_CLICK, 0.5f, 1f)
+                }
+                else -> {
+                    val entry = NavBar.entries.find { it.slot == slot }
+                    if (entry != null) {
+                        Bukkit.getScheduler().runTaskLater(plugin, Runnable {
+                            plugin.popupMenuEngine.open(player, entry.popupId)
+                        }, 1L)
+                    }
+                }
+            }
+            return
+        }
+
+        // 通常モード
         val menuDef = plugin.menuLoader.getMenu(state.menuId) ?: return
         val itemDef = menuDef.items.values.find { it.slot == slot } ?: return
         plugin.actionEngine.executeActions(player, itemDef.actions, state)
@@ -139,26 +161,34 @@ class MenuEngine(private val plugin: OyasaiMenu) : Listener {
             }
         }
 
-        // root メニューは上部エリア (0〜44) を灰色ガラス + お知らせで埋める
+        // ============================================================
+        // root メニュー専用処理
+        // ============================================================
         if (menuDef.id == "root") {
-            val announcements = plugin.announcementManager.getAnnouncements()
+            // ① 0〜44 を全て無記名灰色ガラスで強制初期化
             for (i in 0..44) {
-                if (inv.getItem(i) == null) {
-                    val ann = announcements.getOrNull(i)
-                    val glass = org.bukkit.inventory.ItemStack(org.bukkit.Material.GRAY_STAINED_GLASS_PANE)
-                    val meta  = glass.itemMeta!!
-                    if (ann != null) {
-                        meta.displayName(colorizeComponent(ann.title))
-                        if (ann.body.isNotEmpty()) meta.lore(ann.body.map { colorizeComponent(it) })
-                    } else {
-                        meta.displayName(colorizeComponent(" "))
-                    }
-                    glass.itemMeta = meta
-                    inv.setItem(i, glass)
-                }
+                val glass = org.bukkit.inventory.ItemStack(org.bukkit.Material.GRAY_STAINED_GLASS_PANE)
+                val meta  = glass.itemMeta!!
+                meta.displayName(colorizeComponent(" "))
+                glass.itemMeta = meta
+                inv.setItem(i, glass)
             }
+            // ② お知らせを上書き (スロット 0 から順番)
+            val announcements = plugin.announcementManager.getAnnouncements()
+            announcements.forEachIndexed { idx, ann ->
+                if (idx > 44) return@forEachIndexed
+                val glass = org.bukkit.inventory.ItemStack(org.bukkit.Material.GRAY_STAINED_GLASS_PANE)
+                val meta  = glass.itemMeta!!
+                meta.displayName(colorizeComponent(ann.title))
+                if (ann.body.isNotEmpty()) {
+                    meta.lore(ann.body.map { colorizeComponent(it) })
+                }
+                glass.itemMeta = meta
+                inv.setItem(idx, glass)
+            }
+            // ③ ナビバー (45〜53) を描画
+            NavBar.apply(inv, player, plugin, activeSlot = -1)
         }
-
         return inv
     }
 

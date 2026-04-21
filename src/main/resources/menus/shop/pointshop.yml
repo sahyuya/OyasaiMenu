@@ -1,4 +1,16 @@
-utilities:
+# menus/shop/pointshop.yml  ─  ポイントショップ定義
+#
+# ■ 各アイテムのフィールド説明
+#   icon:              表示マテリアル名 (大文字)
+#   name:              表示名 (%player% 使用可)
+#   lore:              説明文 (%tokens%, %price%, %balance% 使用可)
+#   cost:              必要ポイント数 (整数)
+#   message:           購入時メッセージ (%price%, %tokens%, %player% 使用可)
+#   commands:          購入時実行コマンドリスト (%player%, %price% 使用可)
+#   close-on-purchase: true にすると購入後にGUIを閉じる (デフォルト: false)
+#                      シュルカーボックスを開くなどGUIが干渉するアイテムに使用する
+
+point1:
   name: '&cポイントショップ'
   items:
     '0':
@@ -145,6 +157,7 @@ utilities:
         - 'getpt %player%'
         - 'give %player% item_frame 1'
         - 'buycanvas %player%'
+      close-on-purchase: true  # シュルカーボックスを開くためGUIを閉じる
 
     '13':
       icon: EMERALD

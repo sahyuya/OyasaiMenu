@@ -1,0 +1,18 @@
+# CarBuilder メニュー
+# 画像6参照: 青緑ガラス、col7 row4 (slot43) にエンチャントかまど付きトロッコ
+title: "&bCarBuilder"
+glass: CYAN_STAINED_GLASS_PANE
+nav_active: 50
+
+items:
+  rvmenu:
+    slot: 43
+    icon: FURNACE_MINECART
+    enchanted: true
+    name: "&bCarBuilderメニューを開く"
+    lore:
+      - "&7/rvmenu"
+      - ""
+      - "&eクリックで開く"
+    actions:
+      - {player_cmd: "rvmenu"}
