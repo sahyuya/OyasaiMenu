@@ -1,0 +1,61 @@
+# ショップ選択メニュー (ポップアップのまま)
+# 画像4参照: 黄色ガラス、col2 下から上 (ブロック→装飾→鉱石→ツール→ポイント)
+title: "&eサーバーショップ"
+glass: YELLOW_STAINED_GLASS_PANE
+nav_active: 48
+
+items:
+  blocks:
+    slot: 39
+    icon: BRICKS
+    name: "&aブロックショップ"
+    lore:
+      - "&7各種建築ブロック"
+      - ""
+      - "&eクリックで開く"
+    actions:
+      - {open_shop: "blocks"}
+
+  decorations:
+    slot: 30
+    icon: PINK_PETALS
+    name: "&b装飾ショップ"
+    lore:
+      - "&7装飾・植物アイテム"
+      - ""
+      - "&eクリックで開く"
+    actions:
+      - {open_shop: "decorations"}
+
+  ores:
+    slot: 21
+    icon: DIAMOND_ORE
+    name: "&3鉱石ショップ"
+    lore:
+      - "&7鉱石・資源アイテム"
+      - ""
+      - "&eクリックで開く"
+    actions:
+      - {open_shop: "ores"}
+
+  tools:
+    slot: 12
+    icon: DIAMOND_PICKAXE
+    name: "&6ツールショップ"
+    lore:
+      - "&7エンチャント済みツール"
+      - ""
+      - "&eクリックで開く"
+    actions:
+      - {open_shop: "tools"}
+
+  pointshop:
+    slot: 3
+    icon: NETHER_STAR
+    name: "&6★ ポイントショップ"
+    lore:
+      - "&7ポイントで購入"
+      - ""
+      - "&eクリックで開く"
+    actions:
+      - {open_popup: "pointshop_redirect"}
