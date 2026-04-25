@@ -8,28 +8,21 @@ import org.bukkit.entity.Player
 
 @Suppress("UnstableApiUsage")
 class SellCommand(private val plugin: OyasaiMenu) : BasicCommand {
-
     override fun execute(source: CommandSourceStack, args: Array<out String>) {
-        val player = source.sender as? Player
-            ?: run { source.sender.sendMessage("§cゲーム内から実行してください。"); return }
-        if (!player.hasPermission("visualmenu.use")) {
-            player.sendMessage("§cこのコマンドを使う権限がありません。"); return
-        }
-        if (player.gameMode == org.bukkit.GameMode.CREATIVE) {
-            player.sendMessage("§cクリエイティブモードでは売却できません。"); return
-        }
+        val player = source.sender as? Player ?: run { source.sender.sendMessage("§cゲーム内から実行してください。"); return }
+        if (!player.hasPermission("oyasaimenu.use")) { player.sendMessage("§cこのコマンドを使う権限がありません。"); return }
+        if (player.gameMode == org.bukkit.GameMode.CREATIVE) { player.sendMessage("§cクリエイティブモードでは売却できません。"); return }
         when (args.getOrNull(0)?.lowercase()) {
             "hand" -> sellHand(player)
             "all"  -> sellAll(player)
             else   -> plugin.sellEngine.openSellMenu(player)
         }
     }
-
     override fun suggest(source: CommandSourceStack, args: Array<out String>): List<String> {
-        if (args.size != 1) return emptyList()
-        return listOf("hand", "all").filter { it.startsWith(args[0], ignoreCase = true) }
+        if (args.size > 1) return emptyList()
+        val prefix = args.firstOrNull() ?: ""
+        return listOf("hand", "all").filter { it.startsWith(prefix, ignoreCase = true) }
     }
-
     private fun sellHand(player: Player) {
         val item = player.inventory.itemInMainHand
         if (item.type.isAir) { player.sendMessage(c("&c手に何も持っていません。")); return }
@@ -41,7 +34,6 @@ class SellCommand(private val plugin: OyasaiMenu) : BasicCommand {
         player.sendMessage(c("&b売却: &f${item.type.name.lowercase()} ×${item.amount}  +${EconomyManager.format(total)}"))
         player.playSound(player.location, org.bukkit.Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 0.8f)
     }
-
     private fun sellAll(player: Player) {
         var earned = 0.0; var count = 0
         player.inventory.contents.forEachIndexed { i, stack ->
@@ -56,6 +48,5 @@ class SellCommand(private val plugin: OyasaiMenu) : BasicCommand {
         player.sendMessage(c("&a全売却: &f${count}個  +${EconomyManager.format(earned)} &7残高: &f${EconomyManager.format(EconomyManager.getBalance(player))}"))
         player.playSound(player.location, org.bukkit.Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f)
     }
-
     private fun c(text: String) = text.replace('&', '\u00A7')
 }

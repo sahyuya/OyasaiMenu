@@ -15,7 +15,7 @@ data class MenuDefinition(
 
 data class MenuItemDefinition(
     val slot: Int,
-    val icon: Material = Material.STONE,
+    val icon: Material = Material.AIR,
     val name: String = "",
     val lore: List<String> = emptyList(),
     val actions: List<MenuAction> = emptyList(),

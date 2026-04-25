@@ -87,7 +87,7 @@ class MenuLoader(private val plugin: OyasaiMenu) {
 
         val slot = section.getInt("slot", base.slot)
         val icon = section.getString("icon", base.icon.name)?.uppercase()
-            ?.let { runCatching { Material.valueOf(it) }.getOrElse { Material.STONE } }
+            ?.let { runCatching { Material.valueOf(it) }.getOrElse { Material.AIR } }
             ?: base.icon
         val name = section.getString("name", base.name) ?: base.name
         val lore = section.getStringList("lore").ifEmpty { base.lore }

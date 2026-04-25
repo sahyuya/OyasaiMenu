@@ -6,7 +6,7 @@ nav_active: 50
 
 items:
   rvmenu:
-    slot: 43
+    slot: 41
     icon: FURNACE_MINECART
     enchanted: true
     name: "&bCarBuilderメニューを開く"
@@ -16,3 +16,15 @@ items:
       - "&eクリックで開く"
     actions:
       - {player_cmd: "rvmenu"}
+
+  empty1:
+    slot: 5
+
+  empty2:
+    slot: 14
+
+  empty3:
+    slot: 23
+
+  empty4:
+    slot: 32

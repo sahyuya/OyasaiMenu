@@ -7,7 +7,7 @@ nav_active: 49
 
 items:
   build_list:
-    slot: 38
+    slot: 40
     icon: OAK_SIGN
     name: "&a建築一覧"
     lore:
@@ -19,7 +19,7 @@ items:
       - {close: true}
 
   my_builds:
-    slot: 29
+    slot: 31
     icon: BIRCH_SIGN
     name: "&b自分の建築を見る"
     lore:
@@ -31,7 +31,7 @@ items:
       - {close: true}
 
   sl_menu:
-    slot: 20
+    slot: 22
     icon: OAK_HANGING_SIGN
     enchanted: true
     name: "&eSocialLikesメニュー"
@@ -44,7 +44,7 @@ items:
       - {close: true}
 
   near:
-    slot: 11
+    slot: 13
     icon: SPYGLASS
     name: "&6近くの建築を探す"
     lore:
@@ -56,7 +56,7 @@ items:
       - {close: true}
 
   vtp:
-    slot: 2
+    slot: 4
     icon: COMPASS
     enchanted: true
     name: "&d空き地へテレポート"
@@ -69,7 +69,7 @@ items:
       - {close: true}
 
   vtp_biome:
-    slot: 3
+    slot: 5
     icon: RECOVERY_COMPASS
     name: "&5バイオーム指定でテレポート"
     lore:
@@ -77,4 +77,4 @@ items:
       - ""
       - "&eクリックでメニューを開く"
     actions:
-      - {open_popup: "vtp_biome"}
+      - {open_popup: "vtpbiome"}

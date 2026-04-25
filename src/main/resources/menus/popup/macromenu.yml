@@ -17,3 +17,23 @@ items:
       - "&eクリックで開く"
     actions:
       - {open_macro: true}
+
+  empty1:
+    slot: 7
+    icon: LIGHT_GRAY_STAINED_GLASS_PANE
+    name: " "
+
+  empty2:
+    slot: 16
+    icon: LIGHT_GRAY_STAINED_GLASS_PANE
+    name: " "
+
+  empty3:
+    slot: 25
+    icon: LIGHT_GRAY_STAINED_GLASS_PANE
+    name: " "
+
+  empty4:
+    slot: 34
+    icon: LIGHT_GRAY_STAINED_GLASS_PANE
+    name: " "
