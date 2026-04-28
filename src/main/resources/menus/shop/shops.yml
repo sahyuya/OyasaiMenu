@@ -910,23 +910,47 @@ ores:
     - gold_ingot 50 5
     - iron_ingot 50 5
     - coal 50 5
+    - copper_ingot 50 5
     - redstone 50 5
     - lapis_lazuli 50 5
     - emerald 50 5
     - amethyst_shard 50 5
-    - copper_ingot 50 5
     - diamond_block 450 45
     - gold_block 450 45
     - iron_block 450 45
     - coal_block 450 45
+    - copper_block 450 45
     - redstone_block 450 45
     - lapis_block 450 45
     - emerald_block 450 45
     - amethyst_block 450 45
-    - copper_block 450 45
+    - diamond_ore 50 5
+    - gold_ore 50 5
+    - iron_ore 50 5
+    - coal_ore 50 5
+    - copper_ore 50 5
+    - redstone_ore 50 5
+    - lapis_ore 50 5
+    - emerald_ore 50 5
+    - nether_quartz_ore 50 5
+    - deepslate_diamond_ore 50 5
+    - deepslate_gold_ore 50 5
+    - deepslate_iron_ore 50 5
+    - deepslate_coal_ore 50 5
+    - deepslate_copper_ore 50 5
+    - deepslate_redstone_ore 50 5
+    - deepslate_lapis_ore 50 5
+    - deepslate_emerald_ore 50 5
+    - nether_gold_ore 50 5
     - raw_iron 50 5
     - raw_copper 50 5
     - raw_gold 50 5
+    - raw_iron_block 450 45
+    - raw_copper_block 450 45
+    - raw_gold_block 450 45
+    - ancient_debris 60000 6000
+    - netherite_ingot 240000 24000
+    - netherite_block 2160000 216000
 
 tools:
   name: '&1ツール'

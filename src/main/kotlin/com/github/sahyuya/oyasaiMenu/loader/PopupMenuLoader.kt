@@ -76,8 +76,8 @@ class PopupMenuLoader(private val plugin: OyasaiMenu) {
                 return@forEach
             }
 
-            val iconName = sec.getString("icon", "AIR")?.uppercase() ?: "AIR"
-            val icon = runCatching { Material.valueOf(iconName) }.getOrDefault(Material.AIR)
+            val iconName = sec.getString("icon", "STONE")?.uppercase() ?: "STONE"
+            val icon = runCatching { Material.valueOf(iconName) }.getOrDefault(Material.STONE)
             val texture = sec.getString("texture")
 
             val enchanted = sec.getBoolean("enchanted", false)

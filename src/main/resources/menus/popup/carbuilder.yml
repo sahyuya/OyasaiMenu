@@ -19,12 +19,20 @@ items:
 
   empty1:
     slot: 5
+    icon: LIGHT_GRAY_STAINED_GLASS_PANE
+    name: " "
 
   empty2:
     slot: 14
+    icon: LIGHT_GRAY_STAINED_GLASS_PANE
+    name: " "
 
   empty3:
     slot: 23
+    icon: LIGHT_GRAY_STAINED_GLASS_PANE
+    name: " "
 
   empty4:
     slot: 32
+    icon: LIGHT_GRAY_STAINED_GLASS_PANE
+    name: " "

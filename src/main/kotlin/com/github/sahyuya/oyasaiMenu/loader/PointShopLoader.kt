@@ -58,12 +58,8 @@ class PointShopLoader(private val plugin: OyasaiMenu) {
                     plugin.logger.warning("不明なマテリアル: $iconName (pointshop $catId.$key)")
                     Material.CHEST
                 }
-                val cost = sec.getLong("cost", 0L)
-                if (cost <= 0) {
-                    plugin.logger.warning("cost が 0 以下: $catId.$key — スキップします")
-                    return@forEach
-                }
 
+                val cost = sec.getLong("cost", 0L)
                 items[key] = PointShopItem(
                     key             = key,
                     icon            = icon,

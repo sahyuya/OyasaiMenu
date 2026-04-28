@@ -70,3 +70,5 @@ items:
 
   empty:
     slot: 1
+    icon: LIGHT_GRAY_STAINED_GLASS_PANE
+    name: " "
