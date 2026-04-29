@@ -19,8 +19,9 @@ class OyasaiMenu : JavaPlugin(), Listener {
     lateinit var pointShopLoader:  PointShopLoader
     lateinit var popupMenuLoader:  PopupMenuLoader
 
-    lateinit var macroManager:        MacroManager
-    lateinit var announcementManager: AnnouncementManager
+    lateinit var macroManager:           MacroManager
+    lateinit var announcementManager:    AnnouncementManager
+    lateinit var sellBlacklistManager:   SellBlacklistManager   // ★ 追加
 
     lateinit var menuEngine:       MenuEngine
     lateinit var actionEngine:     ActionEngine
@@ -39,8 +40,9 @@ class OyasaiMenu : JavaPlugin(), Listener {
         pointShopLoader  = PointShopLoader(this)
         popupMenuLoader  = PopupMenuLoader(this)
 
-        macroManager         = MacroManager(this)
-        announcementManager  = AnnouncementManager(this)
+        macroManager           = MacroManager(this)
+        announcementManager    = AnnouncementManager(this)
+        sellBlacklistManager   = SellBlacklistManager(this)   // ★
 
         menuEngine       = MenuEngine(this)
         actionEngine     = ActionEngine(this)
@@ -56,6 +58,7 @@ class OyasaiMenu : JavaPlugin(), Listener {
         pointShopLoader.loadAll()
         popupMenuLoader.loadAll()
         announcementManager.loadAll()
+        sellBlacklistManager.loadAll()          // ★
         EconomyManager.init(this)
         TokenCurrencyManager.init(this)
         CooldownManager.init(this)
@@ -63,7 +66,7 @@ class OyasaiMenu : JavaPlugin(), Listener {
         lifecycleManager.registerEventHandler(LifecycleEvents.COMMANDS) { event ->
             val reg = event.registrar()
             reg.register("menu",       "メニューを開く",                listOf("m"),       MenuCommand(this))
-            reg.register("menuedit",   "メニューを編集モードで開く",     emptyList(),       MenuAdminCommand(this))
+            reg.register("menuedit",   "メニューを管理する",             emptyList(),       MenuAdminCommand(this))
             reg.register("shop",       "ショップを開く",                 listOf("sh"),      ShopCommand(this))
             reg.register("sell",       "アイテムを売却する",             emptyList(),       SellCommand(this))
             reg.register("pshop",      "ポイントショップを開く",          listOf("ps"),      PointShopCommand(this))
@@ -72,12 +75,11 @@ class OyasaiMenu : JavaPlugin(), Listener {
             reg.register("oyasaimenu", "OyasaiMenu 管理コマンド",         listOf("om"),      OyasaiMenuCommand(this))
         }
 
-        // AnnouncementManager も Listener として登録 (PlayerEditBookEvent を受け取るため)
         listOf(
             menuEngine, popupMenuEngine,
             shopEngine, sellEngine, pointShopEngine,
             macroEngine, adminEngine,
-            announcementManager,   // ← 追加
+            announcementManager,
             this
         ).forEach { server.pluginManager.registerEvents(it as org.bukkit.event.Listener, this) }
 
@@ -115,6 +117,7 @@ class OyasaiMenu : JavaPlugin(), Listener {
         pointShopLoader.reload()
         popupMenuLoader.reload()
         announcementManager.reload()
+        sellBlacklistManager.reload()           // ★
         EconomyManager.init(this)
         TokenCurrencyManager.init(this)
         CooldownManager.reload(this)

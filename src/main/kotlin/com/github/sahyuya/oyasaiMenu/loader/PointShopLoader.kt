@@ -12,19 +12,11 @@ import java.io.File
  *
  * menus/shop/pointshop.yml を読み込む。
  *
- * YAML 形式:
- *   <categoryId>:
- *     name: '表示名'
- *     items:
- *       '<スロット番号>':
- *         icon: MATERIAL_NAME
- *         name: '表示名 (%player% 使用可)'
- *         lore:
- *           - '説明文 (%tokens%, %price% 使用可)'
- *         cost: 30           # 必要ポイント数 (整数)
- *         message: '購入メッセージ'
- *         commands:
- *           - 'コマンド (%player% 使用可)'
+ * カスタムヘッド指定:
+ *   icon: CUSTOM_HEAD
+ *   texture: "<64文字テクスチャハッシュ>"
+ *
+ * AIR を icon に指定するとスロットを空欄にできる。
  */
 class PointShopLoader(private val plugin: OyasaiMenu) {
 
@@ -54,9 +46,16 @@ class PointShopLoader(private val plugin: OyasaiMenu) {
                 val sec = itemsSec.getConfigurationSection(key) ?: return@forEach
 
                 val iconName = sec.getString("icon", "CHEST")?.uppercase() ?: "CHEST"
-                val icon = runCatching { Material.valueOf(iconName) }.getOrElse {
-                    plugin.logger.warning("不明なマテリアル: $iconName (pointshop $catId.$key)")
-                    Material.CHEST
+                val customTexture: String? = sec.getString("texture")
+
+                // CUSTOM_HEAD は PLAYER_HEAD として扱い texture を保持する
+                val icon: Material = when {
+                    iconName == "CUSTOM_HEAD" -> Material.PLAYER_HEAD
+                    iconName == "AIR"         -> Material.AIR
+                    else -> runCatching { Material.valueOf(iconName) }.getOrElse {
+                        plugin.logger.warning("不明なマテリアル: $iconName (pointshop $catId.$key)")
+                        Material.CHEST
+                    }
                 }
 
                 val cost = sec.getLong("cost", 0L)
@@ -68,7 +67,8 @@ class PointShopLoader(private val plugin: OyasaiMenu) {
                     cost            = cost,
                     message         = sec.getString("message", "&a&3${cost}&fP&7使用しました") ?: "",
                     commands        = sec.getStringList("commands"),
-                    closeOnPurchase = sec.getBoolean("close-on-purchase", false)
+                    closeOnPurchase = sec.getBoolean("close-on-purchase", false),
+                    customTexture   = customTexture
                 )
                 loaded++
             }

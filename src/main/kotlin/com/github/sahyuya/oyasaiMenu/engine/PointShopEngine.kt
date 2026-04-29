@@ -7,6 +7,7 @@ import com.github.sahyuya.oyasaiMenu.manager.TokenCurrencyManager
 import com.github.sahyuya.oyasaiMenu.model.PlayerPointShopState
 import com.github.sahyuya.oyasaiMenu.model.PointShopCategory
 import com.github.sahyuya.oyasaiMenu.model.PointShopItem
+import com.github.sahyuya.oyasaiMenu.util.CustomHead
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
 import org.bukkit.Bukkit
@@ -25,8 +26,8 @@ import org.bukkit.inventory.ItemStack
  * 修正:
  *   - CooldownManager.isClickOnCooldown を適用
  *   - close-on-purchase: GUI を閉じてからコマンドを実行する順序に修正
- *     旧: コマンド実行 → closeInventory → コマンドで開いたGUIが閉じられた
- *     新: closeInventory(tick+1) → コマンド実行(tick+2)
+ *   - CUSTOM_HEAD (customTexture) 対応: CustomHead.get() を使用
+ *   - AIR スロット対応: AIR アイコンは空スロット扱い
  */
 class PointShopEngine(private val plugin: OyasaiMenu) : Listener {
 
@@ -46,15 +47,30 @@ class PointShopEngine(private val plugin: OyasaiMenu) : Listener {
     private fun buildInventory(player: Player, category: PointShopCategory, state: PlayerPointShopState): Inventory {
         val tokens = TokenCurrencyManager.getTokens(player)
         val inv = Bukkit.createInventory(null, 54, comp("${cc(category.displayName)} &8| &f${state.page+1}&8/&f${category.pageCount}"))
-        category.getPage(state.page).forEachIndexed { i, item -> inv.setItem(i, buildItemStack(player, item, tokens)) }
-        buildBottomBar(inv, player, category, state, tokens); return inv
+        category.getPage(state.page).forEachIndexed { i, item ->
+            if (!item.icon.isAir) {
+                inv.setItem(i, buildItemStack(player, item, tokens))
+            }
+        }
+        buildBottomBar(inv, player, category, state, tokens)
+        return inv
     }
 
     private fun buildItemStack(player: Player, item: PointShopItem, tokens: Long): ItemStack {
-        val stack = ItemStack(item.icon); val meta = stack.itemMeta ?: return stack
+        // カスタムヘッド対応
+        val stack: ItemStack = when {
+            item.customTexture != null -> CustomHead.get(item.customTexture)
+            else -> ItemStack(item.icon)
+        }
+        val meta = stack.itemMeta ?: return stack
         if (item.name.isNotEmpty()) meta.displayName(comp(item.name.replace("%player%", player.name)))
         val balance = if (EconomyManager.isAvailable) EconomyManager.getBalance(player) else 0.0
-        val lore = item.lore.map { line -> comp(line.replace("%player%", player.name).replace("%tokens%", TokenCurrencyManager.format(tokens)).replace("%price%", TokenCurrencyManager.format(item.cost)).replace("%balance%", if (EconomyManager.isAvailable) EconomyManager.format(balance) else "---")) }.toMutableList()
+        val lore = item.lore.map { line ->
+            comp(line.replace("%player%", player.name)
+                     .replace("%tokens%", TokenCurrencyManager.format(tokens))
+                     .replace("%price%", TokenCurrencyManager.format(item.cost))
+                     .replace("%balance%", if (EconomyManager.isAvailable) EconomyManager.format(balance) else "---"))
+        }.toMutableList()
         lore += comp("")
         if (tokens >= item.cost) lore += comp("&e左クリック &7→ &a購入 (&f${TokenCurrencyManager.format(item.cost)}P&7)")
         else { lore += comp("&cポイントが不足しています"); lore += comp("&7必要: &c${TokenCurrencyManager.format(item.cost)}P &7/ 所持: &f${TokenCurrencyManager.format(tokens)}P") }
@@ -81,7 +97,6 @@ class PointShopEngine(private val plugin: OyasaiMenu) : Listener {
         val state = playerStates[player.uniqueId.toString()] ?: return
         if (event.clickedInventory == player.inventory) { if (event.isShiftClick) event.isCancelled = true; return }
         event.isCancelled = true
-        // クリッククールダウン適用
         if (CooldownManager.isClickOnCooldown(player.uniqueId)) return
         val slot = event.rawSlot
         val category = plugin.pointShopLoader.getCategory(state.categoryId) ?: return
@@ -98,6 +113,7 @@ class PointShopEngine(private val plugin: OyasaiMenu) : Listener {
             in 0..44 -> {
                 if (!event.isLeftClick) return
                 val item = category.getPage(state.page).getOrNull(slot) ?: return
+                if (item.icon.isAir) return
                 handlePurchase(player, item, state, category)
             }
         }
@@ -110,14 +126,6 @@ class PointShopEngine(private val plugin: OyasaiMenu) : Listener {
         playerStates.remove(player.uniqueId.toString())
     }
 
-    /**
-     * 購入処理
-     *
-     * close-on-purchase 修正:
-     *   旧: コマンド実行 → closeInventory → コマンドで開いたGUIが即座に閉じられた
-     *   新: ポイント引き落とし → tick+1 で closeInventory → tick+2 でコマンド実行
-     *       これにより close 後にコマンドで開いたGUIが維持される
-     */
     private fun handlePurchase(player: Player, item: PointShopItem, state: PlayerPointShopState, category: PointShopCategory) {
         val err = TokenCurrencyManager.removeTokens(player, item.cost)
         if (err != null) { player.sendMessage(c(err)); return }
@@ -127,7 +135,6 @@ class PointShopEngine(private val plugin: OyasaiMenu) : Listener {
         player.playSound(player.location, org.bukkit.Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.2f)
 
         if (item.closeOnPurchase) {
-            // tick+1: GUI を閉じる → tick+2: コマンド実行
             Bukkit.getScheduler().runTaskLater(plugin, Runnable {
                 player.closeInventory()
                 Bukkit.getScheduler().runTaskLater(plugin, Runnable {
@@ -137,13 +144,14 @@ class PointShopEngine(private val plugin: OyasaiMenu) : Listener {
                 }, 1L)
             }, 1L)
         } else {
-            // GUI を開いたままコマンド実行してリフレッシュ
             item.commands.forEach { cmd ->
                 Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd.replace("%player%", player.name).replace("%price%", item.cost.toString()))
             }
             val newTokens = TokenCurrencyManager.getTokens(player)
             val inv = player.openInventory.topInventory
-            category.getPage(state.page).forEachIndexed { i, it -> inv.setItem(i, buildItemStack(player, it, newTokens)) }
+            category.getPage(state.page).forEachIndexed { i, it ->
+                if (!it.icon.isAir) inv.setItem(i, buildItemStack(player, it, newTokens))
+            }
             buildBottomBar(inv, player, category, state, newTokens)
         }
     }

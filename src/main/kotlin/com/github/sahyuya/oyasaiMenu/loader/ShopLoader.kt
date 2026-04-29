@@ -13,17 +13,9 @@ import java.io.File
 /**
  * ShopLoader
  *
- * menus/shop/shops.yml を読み込む。
- * InventoryShop 互換形式: "material buyPrice sellPrice"
- *
- * カスタムアイテム定義 (items/custom_items.yml) のフォーマット:
- *   キー名:
- *     id: diamond_pickaxe       ← マテリアル名 ('id' キー, 'material' キーにも対応)
- *     name: '&a表示名'
- *     lore: ['&7説明文']
- *     enchantments:
- *       DIG_SPEED: 5            ← 旧来の Bukkit レガシー名でも
- *       efficiency: 5           ← minecraft: キー名でも可
+ * 追加:
+ *   - addItem(categoryId, materialLine, buy, sell): shops.yml に1行追記して null でなければ成功
+ *   - removeItem(categoryId, index): 指定 index の行を削除してマテリアル名を返す
  */
 class ShopLoader(private val plugin: OyasaiMenu) {
 
@@ -38,9 +30,6 @@ class ShopLoader(private val plugin: OyasaiMenu) {
     )
     private val customItems: MutableMap<String, CustomItemDef> = mutableMapOf()
 
-    // ============================
-    // 旧来の Bukkit レガシーエンチャント名 → minecraft キー名 変換表
-    // ============================
     private val legacyEnchantNames: Map<String, String> = mapOf(
         "DIG_SPEED"                   to "efficiency",
         "DURABILITY"                  to "unbreaking",
@@ -85,14 +74,7 @@ class ShopLoader(private val plugin: OyasaiMenu) {
         sellPriceMap.clear()
         loadCustomItems()
 
-        val file = File(plugin.dataFolder, "menus/shop/shops.yml").also {
-            it.parentFile.mkdirs()
-            if (!it.exists()) {
-                plugin.saveResource("menus/shop/shops.yml", false)
-                plugin.logger.info("menus/shop/shops.yml を初期配置しました。")
-            }
-        }
-
+        val file = shopsFile()
         val yaml = YamlConfiguration.loadConfiguration(file)
         var loaded = 0; var skipped = 0
 
@@ -141,7 +123,64 @@ class ShopLoader(private val plugin: OyasaiMenu) {
     fun reload() = loadAll()
 
     // ============================
-    // カスタムアイテム定義の読み込み
+    // インゲーム編集 API
+    // ============================
+
+    /**
+     * 指定カテゴリの items リストに1行追記して shops.yml を上書き保存する。
+     * @return 保存した File。カテゴリが見つからなければ null。
+     */
+    fun addItem(categoryId: String, materialLine: String, buyPrice: Double, sellPrice: Double): File? {
+        val file = shopsFile()
+        val yaml = YamlConfiguration.loadConfiguration(file)
+        if (!yaml.contains(categoryId)) return null
+
+        val currentList = yaml.getStringList("$categoryId.items").toMutableList()
+        currentList.add("$materialLine $buyPrice $sellPrice")
+        yaml.set("$categoryId.items", currentList)
+
+        runCatching { yaml.save(file) }
+            .onFailure { e -> plugin.logger.warning("shops.yml 保存失敗: ${e.message}") }
+        return file
+    }
+
+    /**
+     * 指定カテゴリの items リストから index 番目 (0-indexed、空行除く) の行を削除する。
+     * @return 削除したアイテム文字列 (materialId など)。失敗なら null。
+     */
+    fun removeItem(categoryId: String, index: Int): String? {
+        val file = shopsFile()
+        val yaml = YamlConfiguration.loadConfiguration(file)
+        if (!yaml.contains(categoryId)) return null
+
+        // 空行・コメントを除いた実アイテム行のみ対象
+        val rawList = yaml.getStringList("$categoryId.items").toMutableList()
+        val realIndices = rawList.indices.filter { rawList[it].trim().isNotEmpty() && !rawList[it].trim().startsWith("#") }
+        val realIndex = realIndices.getOrNull(index) ?: return null
+
+        val removed = rawList[realIndex]
+        rawList.removeAt(realIndex)
+        yaml.set("$categoryId.items", rawList)
+
+        runCatching { yaml.save(file) }
+            .onFailure { e -> plugin.logger.warning("shops.yml 保存失敗: ${e.message}") }
+        return removed.trim().split("\\s+".toRegex()).firstOrNull()
+    }
+
+    // ============================
+    // ファイルアクセス
+    // ============================
+
+    private fun shopsFile(): File = File(plugin.dataFolder, "menus/shop/shops.yml").also {
+        it.parentFile.mkdirs()
+        if (!it.exists()) {
+            plugin.saveResource("menus/shop/shops.yml", false)
+            plugin.logger.info("menus/shop/shops.yml を初期配置しました。")
+        }
+    }
+
+    // ============================
+    // カスタムアイテム読み込み
     // ============================
 
     private fun loadCustomItems() {
@@ -157,26 +196,18 @@ class ShopLoader(private val plugin: OyasaiMenu) {
         val yaml = YamlConfiguration.loadConfiguration(file)
         yaml.getKeys(false).forEach { key ->
             val sec = yaml.getConfigurationSection(key) ?: return@forEach
-
-            // 'id' キーと 'material' キーの両方を受け付ける (items.yml 互換)
             val matName = (sec.getString("id") ?: sec.getString("material") ?: "STONE").uppercase()
             val mat = runCatching { Material.valueOf(matName) }.getOrElse {
                 plugin.logger.warning("custom_items.yml: 不明なマテリアル '$matName' (key: $key)")
                 Material.STONE
             }
-
-            // エンチャントをパース
             val enchantMap = mutableMapOf<Enchantment, Int>()
             sec.getConfigurationSection("enchantments")?.getKeys(false)?.forEach { enchKey ->
                 val level = sec.getInt("enchantments.$enchKey", 1)
                 val enchant = resolveEnchantment(enchKey)
-                if (enchant != null) {
-                    enchantMap[enchant] = level
-                } else {
-                    plugin.logger.warning("custom_items.yml: 不明なエンチャント '$enchKey' (key: $key)")
-                }
+                if (enchant != null) enchantMap[enchant] = level
+                else plugin.logger.warning("custom_items.yml: 不明なエンチャント '$enchKey' (key: $key)")
             }
-
             customItems[key] = CustomItemDef(
                 material     = mat,
                 name         = sec.getString("name", "") ?: "",
@@ -187,20 +218,11 @@ class ShopLoader(private val plugin: OyasaiMenu) {
         plugin.logger.info("カスタムアイテム: ${customItems.size} 件をロード")
     }
 
-    /**
-     * エンチャント名を Bukkit の Enchantment オブジェクトに解決する。
-     *
-     * 以下の順で試みる:
-     *   1. legacyEnchantNames マップ経由で minecraft: キー名に変換してから Registry 検索
-     *   2. そのまま lowercase にして Registry 検索 (例: "efficiency" → minecraft:efficiency)
-     */
     private fun resolveEnchantment(name: String): Enchantment? {
-        // レガシー名 → minecraft キー名 に変換
         val key = legacyEnchantNames[name.uppercase()] ?: name.lowercase()
         return runCatching {
             Registry.ENCHANTMENT.get(NamespacedKey.minecraft(key))
         }.getOrElse {
-            // Registry API が使えない古いバージョンのフォールバック
             @Suppress("DEPRECATION")
             Enchantment.getByName(name.uppercase())
         }
@@ -210,7 +232,6 @@ class ShopLoader(private val plugin: OyasaiMenu) {
     // パース
     // ============================
 
-    /** "$キー buyPrice sellPrice" 形式のパース */
     private fun parseCustomItemLine(line: String, catId: String): ShopItem? {
         val parts = line.split("\\s+".toRegex())
         if (parts.size < 3) {
@@ -234,7 +255,6 @@ class ShopLoader(private val plugin: OyasaiMenu) {
         )
     }
 
-    /** "material buyPrice sellPrice" 通常行のパース */
     private fun parseItemLine(line: String, catId: String): ShopItem? {
         val parts = line.split("\\s+".toRegex())
         if (parts.size < 3) {

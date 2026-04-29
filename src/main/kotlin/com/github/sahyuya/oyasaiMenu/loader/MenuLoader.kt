@@ -8,12 +8,17 @@ import org.bukkit.configuration.file.YamlConfiguration
 import java.io.File
 
 /**
- * MenuLoader (旧: MenuConfigLoader)
+ * MenuLoader
  *
  * plugins/OyasaiMenu/menus/ を再帰スキャンし、
  * 全 .yml を MenuDefinition としてロードする。
- * ファイルパス (menus/ からの相対パス、拡張子除く) がメニューID。
- *   例: menus/shop/index.yml → ID "shop/index"
+ *
+ * カスタムヘッド指定:
+ *   icon: CUSTOM_HEAD
+ *   texture: "<64文字テクスチャハッシュ>"
+ *
+ * 空スロット指定:
+ *   icon: AIR
  */
 class MenuLoader(private val plugin: OyasaiMenu) {
 
@@ -30,10 +35,8 @@ class MenuLoader(private val plugin: OyasaiMenu) {
         val menusDir = File(plugin.dataFolder, "menus")
         if (!menusDir.exists()) {
             menusDir.mkdirs()
-            plugin.saveResource("menus/root.yml", false)
-            plugin.logger.info("menus/ を作成しデフォルトファイルを配置しました。")
+            plugin.logger.info("menus/ を作成しました。")
         }
-        // shops.yml / pointshop.yml はメニューではないのでスキップ
         scanDirectory(menusDir, "", setOf("shops.yml", "pointshop.yml"))
         plugin.logger.info("${menus.size} 個のメニューをロードしました。")
     }
@@ -45,7 +48,6 @@ class MenuLoader(private val plugin: OyasaiMenu) {
     private fun scanDirectory(dir: File, prefix: String, skipFiles: Set<String> = emptySet()) {
         dir.listFiles()?.sortedBy { it.name }?.forEach { file ->
             if (file.isDirectory) {
-                // popup/ ディレクトリは PopupMenuLoader が管理するのでスキップ
                 if (file.name == "popup") return@forEach
                 scanDirectory(file, "$prefix${file.name}/", skipFiles)
             } else if (file.extension == "yml" && file.name !in skipFiles) {
@@ -86,18 +88,29 @@ class MenuLoader(private val plugin: OyasaiMenu) {
         } ?: MenuItemDefinition(slot = 0)
 
         val slot = section.getInt("slot", base.slot)
-        val icon = section.getString("icon", base.icon.name)?.uppercase()
-            ?.let { runCatching { Material.valueOf(it) }.getOrElse { Material.STONE } }
-            ?: base.icon
+        val iconName = section.getString("icon", base.icon.name)?.uppercase() ?: base.icon.name
+        val customTexture: String? = section.getString("texture") ?: base.customTexture
+
+        val icon: Material = when {
+            iconName == "CUSTOM_HEAD" -> Material.PLAYER_HEAD
+            iconName == "AIR"         -> Material.AIR
+            else -> runCatching { Material.valueOf(iconName) }.getOrElse { Material.STONE }
+        }
+
         val name = section.getString("name", base.name) ?: base.name
         val lore = section.getStringList("lore").ifEmpty { base.lore }
         val permission = section.getString("permission", base.permission)
         val actions = if (section.contains("actions")) parseActions(section, "actions") else base.actions
 
         return MenuItemDefinition(
-            slot = slot, icon = icon, name = name, lore = lore,
-            actions = actions, permission = permission,
-            template = section.getString("extends")
+            slot          = slot,
+            icon          = icon,
+            name          = name,
+            lore          = lore,
+            actions       = actions,
+            permission    = permission,
+            template      = section.getString("extends"),
+            customTexture = customTexture
         )
     }
 

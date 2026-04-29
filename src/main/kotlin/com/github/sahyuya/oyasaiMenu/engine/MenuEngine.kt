@@ -5,6 +5,7 @@ import com.github.sahyuya.oyasaiMenu.manager.CooldownManager
 import com.github.sahyuya.oyasaiMenu.model.MenuDefinition
 import com.github.sahyuya.oyasaiMenu.model.MenuItemDefinition
 import com.github.sahyuya.oyasaiMenu.model.PlayerMenuState
+import com.github.sahyuya.oyasaiMenu.util.CustomHead
 import me.clip.placeholderapi.PlaceholderAPI
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
@@ -20,26 +21,42 @@ import org.bukkit.inventory.ItemStack
 
 /**
  * MenuEngine
- * アナウンス表示: 先頭1件を 0〜44 全スロットに同じ内容で表示
+ *
+ * 変更点:
+ *   - root.yml が存在しなくてもフォールバック定義で動作する
+ *   - icon: AIR → スロットを空欄にする (setItem しない)
+ *   - icon: CUSTOM_HEAD + texture → CustomHead.get() を使用
+ *   - アナウンス表示: 先頭1件を 0〜44 全スロットに同じ内容で表示
  */
 class MenuEngine(private val plugin: OyasaiMenu) : Listener {
 
     private val playerStates: MutableMap<String, PlayerMenuState> = mutableMapOf()
     private val staticCache:  MutableMap<String, Inventory>       = mutableMapOf()
 
+    /** root メニューのフォールバック定義 (root.yml がなくても動作させるため) */
+    private val rootFallback = MenuDefinition(
+        id    = "root",
+        title = "&8✦ おやさい鯖 メニュー ✦",
+        size  = 54,
+        items = emptyMap()
+    )
+
     fun openMenu(player: Player, menuId: String, page: Int = 0) {
         val menuDef = plugin.menuLoader.getMenu(menuId)
-        if (menuDef == null) {
-            player.sendMessage(colorize("&cメニューが見つかりません: $menuId"))
-            plugin.logger.warning("存在しないメニューID: $menuId (player=${player.name})"); return
-        }
+            ?: if (menuId == "root") rootFallback
+            else {
+                player.sendMessage(colorize("&cメニューが見つかりません: $menuId"))
+                plugin.logger.warning("存在しないメニューID: $menuId (player=${player.name})")
+                return
+            }
         val inventory = buildInventory(player, menuDef, page)
         player.openInventory(inventory)
         playerStates[player.uniqueId.toString()] = PlayerMenuState(menuId = menuId, page = page, isEditing = false)
     }
 
     fun openMenuInEditMode(player: Player, menuId: String) {
-        val menuDef = plugin.menuLoader.getMenu(menuId) ?: run { player.sendMessage(colorize("&cメニューが見つかりません: $menuId")); return }
+        val menuDef = plugin.menuLoader.getMenu(menuId)
+            ?: run { player.sendMessage(colorize("&cメニューが見つかりません: $menuId")); return }
         val inv = Bukkit.createInventory(null, 54, colorizeComponent("&c[編集] ${menuDef.title}"))
         menuDef.items.values.forEach { if (it.slot < 45) inv.setItem(it.slot, buildItemStack(player, it)) }
         setupEditToolbar(inv)
@@ -65,6 +82,7 @@ class MenuEngine(private val plugin: OyasaiMenu) : Listener {
         }
         val menuDef = plugin.menuLoader.getMenu(state.menuId) ?: return
         val itemDef = menuDef.items.values.find { it.slot == slot } ?: return
+        if (itemDef.icon.isAir) return   // AIR スロットはクリック無視
         plugin.actionEngine.executeActions(player, itemDef.actions, state)
     }
 
@@ -77,14 +95,13 @@ class MenuEngine(private val plugin: OyasaiMenu) : Listener {
         val title = applyPlaceholders(player, menuDef.title)
         val inv   = Bukkit.createInventory(null, menuDef.size, colorizeComponent(title))
         menuDef.items.values.forEach { itemDef ->
+            if (itemDef.icon.isAir) return@forEach                                          // AIR = 空スロット
             if (itemDef.permission != null && !player.hasPermission(itemDef.permission)) return@forEach
             if (itemDef.slot < menuDef.size) inv.setItem(itemDef.slot, buildItemStack(player, itemDef))
         }
         if (menuDef.id == "root") {
-            // 0〜44を灰色ガラスで初期化
             val emptyGlass = makeGlass(Material.GRAY_STAINED_GLASS_PANE, " ")
             for (i in 0..44) inv.setItem(i, emptyGlass)
-            // 先頭1件を全スロットに同じ内容で表示
             val ann = plugin.announcementManager.getAnnouncements().firstOrNull()
             if (ann != null) {
                 val glass = makeGlass(Material.GRAY_STAINED_GLASS_PANE, ann.title, ann.body)
@@ -102,8 +119,17 @@ class MenuEngine(private val plugin: OyasaiMenu) : Listener {
         item.itemMeta = meta; return item
     }
 
+    /**
+     * MenuItemDefinition から ItemStack を生成する。
+     * - icon: PLAYER_HEAD + customTexture → CustomHead.get()
+     * - icon: AIR → null (呼び出し元でスキップすること)
+     */
     private fun buildItemStack(player: Player, itemDef: MenuItemDefinition): ItemStack {
-        val item = ItemStack(itemDef.icon); val meta = item.itemMeta ?: return item
+        val item: ItemStack = when {
+            itemDef.customTexture != null -> CustomHead.get(itemDef.customTexture)
+            else -> ItemStack(itemDef.icon)
+        }
+        val meta = item.itemMeta ?: return item
         meta.displayName(colorizeComponent(applyPlaceholders(player, itemDef.name)))
         val lore = itemDef.lore.map { colorizeComponent(applyPlaceholders(player, it)) }
         if (lore.isNotEmpty()) meta.lore(lore)

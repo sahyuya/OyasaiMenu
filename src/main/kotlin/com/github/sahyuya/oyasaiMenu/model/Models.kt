@@ -13,6 +13,13 @@ data class MenuDefinition(
     val items: Map<String, MenuItemDefinition> = emptyMap()
 )
 
+/**
+ * メニューアイテム定義。
+ *
+ * @param customTexture icon=CUSTOM_HEAD のとき使用するテクスチャハッシュ (64文字16進)。
+ *                      null の場合は通常の Material として扱う。
+ * @param icon          Material.AIR を指定するとそのスロットは空欄になる。
+ */
 data class MenuItemDefinition(
     val slot: Int,
     val icon: Material = Material.STONE,
@@ -20,21 +27,15 @@ data class MenuItemDefinition(
     val lore: List<String> = emptyList(),
     val actions: List<MenuAction> = emptyList(),
     val permission: String? = null,
-    val template: String? = null
+    val template: String? = null,
+    val customTexture: String? = null          // ★ カスタムヘッド対応
 )
 
 // ============================================================
 // アクション定義
 // ============================================================
 
-/**
- * アクションタイプ。
- * 新規追加時は ActionEngine の when にも必ずブランチを追加すること。
- * (Kotlin の sealed-like exhaustive チェック対策として else を持つが
- *  新アクションは明示的に追加することを推奨)
- */
 enum class ActionType {
-    // ---- 基本 ----
     OPEN_MENU,
     RUN_COMMAND,
     RUN_PLAYER_COMMAND,
@@ -46,12 +47,8 @@ enum class ActionType {
     DISCORD_FETCH,
     SOUND,
     BROADCAST,
-
-    // ---- ショップ系 ----
     OPEN_SHOP,
     OPEN_POINT_SHOP,
-
-    // ---- 専用エンジン ----
     OPEN_UTILITY,
     OPEN_MACRO,
     OPEN_INFO,
@@ -60,8 +57,6 @@ enum class ActionType {
     OPEN_CARBUILDER,
     OPEN_LINKS,
     OPEN_SELL,
-
-    // ---- 未定義 ----
     UNKNOWN
 }
 

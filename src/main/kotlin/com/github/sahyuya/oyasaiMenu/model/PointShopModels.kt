@@ -7,25 +7,9 @@ import org.bukkit.Material
 // menus/shop/pointshop.yml の形式に対応
 // ============================================================
 
-/**
- * ポイントショップの1カテゴリ。
- *
- * YAML 例:
- *   utilities:
- *     name: '&cポイントショップ'
- *     items:
- *       '0':
- *         icon: GLASS
- *         name: '&c&l%player%の酸素ボンベ'
- *         lore: [...]
- *         cost: 30
- *         message: '&bTM &8» ...'
- *         commands: [...]
- */
 data class PointShopCategory(
     val id: String,
     val displayName: String,
-    /** スロット番号文字列 → アイテム定義の順序付きマップ */
     val items: Map<String, PointShopItem>
 ) {
     val itemsPerPage: Int = 45
@@ -44,13 +28,8 @@ data class PointShopCategory(
 /**
  * ポイントショップの1商品。
  *
- * @param key        YAML キー (例: "0", "1")
- * @param icon       表示マテリアル
- * @param name       アイテム表示名 (%player% 等プレースホルダ対応)
- * @param lore       説明文 (%tokens%, %price% 等対応)
- * @param cost       必要ポイント数 (Long)
- * @param message    購入時にプレイヤーへ送るメッセージ
- * @param commands   購入時に実行するコマンドリスト (%player%, %price% 等対応)
+ * @param customTexture icon=CUSTOM_HEAD のとき使用するテクスチャハッシュ (64文字16進)
+ *                      null の場合は通常の Material として扱う
  */
 data class PointShopItem(
     val key: String,
@@ -60,15 +39,10 @@ data class PointShopItem(
     val cost: Long,
     val message: String,
     val commands: List<String>,
-    /**
-     * true = 購入後にGUIを閉じる (例: シュルカーボックスを開くアイテムなど)。
-     * pointshop.yml の各アイテムに "close-on-purchase: true" を追加することで設定。
-     * デフォルト false = 購入後もGUIを開いたままにする。
-     */
-    val closeOnPurchase: Boolean = false
+    val closeOnPurchase: Boolean = false,
+    val customTexture: String? = null          // ★ カスタムヘッド対応
 )
 
-/** ポイントショップのプレイヤー状態 */
 data class PlayerPointShopState(
     val categoryId: String,
     val page: Int = 0

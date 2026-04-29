@@ -17,14 +17,14 @@ import org.bukkit.inventory.ItemStack
 /**
  * AdminEngine
  *
- * 管理者専用メニュー。/adminmenu (/admenu) で開く。
- * 総合メニューとは完全に独立している。
+ * /adminmenu (/admenu) で開く管理者専用メニュー。
  *
- * 現在の機能:
- *   - メニューのリロード
- *   - お知らせの管理 (将来実装)
- *   - インゲーム編集モード起動
- *   - その他管理コマンドのショートカット
+ * 機能:
+ *   [10] リロード
+ *   [12] アナウンス編集 (本と羽ペン)
+ *   [14] ショップ商品管理 (チャットでコマンドガイド表示)
+ *   [16] 販売ブラックリスト管理 (チャットでコマンドガイド表示)
+ *   [34] 閉じる
  */
 class AdminEngine(private val plugin: OyasaiMenu) : Listener {
 
@@ -34,24 +34,43 @@ class AdminEngine(private val plugin: OyasaiMenu) : Listener {
         if (!player.hasPermission("oyasaimenu.admin")) {
             player.sendMessage(c("&c管理者権限がありません。")); return
         }
-        val inv = buildInventory(player)
+        val inv = buildInventory()
         player.openInventory(inv)
         activePlayers.add(player.uniqueId.toString())
     }
 
-    private fun buildInventory(player: Player): Inventory {
+    private fun buildInventory(): Inventory {
         val inv = Bukkit.createInventory(null, 54, comp("&4⚙ 管理者メニュー"))
 
-        inv.setItem(10, makeItem(Material.EMERALD, "&aメニューをリロード",
-            listOf("&7全YAMLを再読み込みします", "", "&eクリックで実行")))
+        inv.setItem(10, makeItem(Material.EMERALD, "&aリロード",
+            listOf("&7全 YAML を再読み込みします", "", "&eクリックで実行")))
 
-        inv.setItem(12, makeItem(Material.COMMAND_BLOCK, "&bインゲーム編集モード",
-            listOf("&7/menuedit でメニューを編集", "", "&eクリックで開く")))
+        inv.setItem(12, makeItem(Material.WRITABLE_BOOK, "&bアナウンス編集",
+            listOf("&7本と羽ペンでお知らせを編集します", "", "&eクリックで本を受け取る")))
 
-        inv.setItem(14, makeItem(Material.PAPER, "&eお知らせ管理",
-            listOf("&7総合メニューのお知らせを編集", "&7(将来実装予定)", "", "&7現在は直接 announcements.yml を編集")))
+        inv.setItem(14, makeItem(Material.CHEST, "&eショップ商品管理",
+            listOf(
+                "&7コマンドで商品を追加・削除できます",
+                "",
+                "&f/menuedit shop &7<category> list",
+                "&f/menuedit shop &7<category> add <mat> <buy> <sell>",
+                "&f/menuedit shop &7<category> remove <index>",
+                "",
+                "&eクリックでコマンドガイドをチャットに表示"
+            )))
 
-        inv.setItem(16, makeItem(Material.BARRIER, "&c閉じる",
+        inv.setItem(16, makeItem(Material.BARRIER, "&c販売ブラックリスト管理",
+            listOf(
+                "&7売却禁止アイテムを管理します",
+                "",
+                "&f/menuedit blacklist list",
+                "&f/menuedit blacklist add &7<material>",
+                "&f/menuedit blacklist remove &7<material>",
+                "",
+                "&eクリックでコマンドガイドをチャットに表示"
+            )))
+
+        inv.setItem(34, makeItem(Material.OAK_DOOR, "&7閉じる",
             listOf("&7管理者メニューを閉じます")))
 
         // ガラス装飾
@@ -77,12 +96,29 @@ class AdminEngine(private val plugin: OyasaiMenu) : Listener {
             }
             12 -> {
                 player.closeInventory()
-                val defaultId = plugin.config.getString("menu.default", "root") ?: "root"
                 Bukkit.getScheduler().runTaskLater(plugin, Runnable {
-                    plugin.menuEngine.openMenuInEditMode(player, defaultId)
+                    plugin.announcementManager.openBookEditor(player)
                 }, 1L)
             }
-            16 -> player.closeInventory()
+            14 -> {
+                player.closeInventory()
+                player.sendMessage(c("&b--- ショップ商品管理 ---"))
+                player.sendMessage(c("&f/menuedit shop &7<category> list &8— 一覧"))
+                player.sendMessage(c("&f/menuedit shop &7<category> add <material> <buy> <sell> &8— 追加"))
+                player.sendMessage(c("&f/menuedit shop &7<category> remove <index> &8— 削除"))
+                val cats = plugin.shopLoader.getAllCategories().keys.joinToString(", ")
+                player.sendMessage(c("&7カテゴリ: &f$cats"))
+            }
+            16 -> {
+                player.closeInventory()
+                player.sendMessage(c("&b--- 販売ブラックリスト管理 ---"))
+                player.sendMessage(c("&f/menuedit blacklist list &8— 一覧"))
+                player.sendMessage(c("&f/menuedit blacklist add &7<material> &8— 追加"))
+                player.sendMessage(c("&f/menuedit blacklist remove &7<material> &8— 削除"))
+                val count = plugin.sellBlacklistManager.getMaterials().size
+                player.sendMessage(c("&7現在 &f${count}&7 種登録済み"))
+            }
+            34 -> player.closeInventory()
         }
     }
 

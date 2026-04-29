@@ -23,19 +23,11 @@ import java.util.UUID
 /**
  * MacroEngine
  *
- * コマンド入力方法 (2種類):
- *
- *   (A) 本と羽ペン (推奨、FAWE等も対応)
- *       - 詳細画面の「本でコマンドを編集」をクリック
- *       - 1行 = 1コマンド, ページをまたいでOK
- *       - //wand, wait 1s など自由に記入
- *       - Done で確定
- *
- *   (B) チャット入力 (従来)
- *       - 1行ずつ入力, "done" で完了
- *
- * getMacroIdFromTitle バグ修正:
- *   旧: §コード除去 → 新: &コード除去
+ * 変更点:
+ *   - マクロID フォーマットを "<プレイヤーMCID>_<マクロ名>" (mcid_name 形式) に変更。
+ *     例: sahyuya_home  / sahyuya_mybase
+ *   - 新規作成時に "マクロ名を入力" → ID を "<mcid>_<入力名>" として自動生成。
+ *   - 既存マクロの ID は変更しない (後方互換)。
  */
 class MacroEngine(private val plugin: OyasaiMenu) : Listener {
 
@@ -114,11 +106,6 @@ class MacroEngine(private val plugin: OyasaiMenu) : Listener {
             .map { it.trim() }
             .filter { it.isNotEmpty() }
 
-        // コマンドを正規化
-        // wait Xs → そのまま保存
-        // //wand  → /wand (removePrefix("/") = 先頭1つ除去)
-        // /home   → home
-        // home    → home (変化なし)
         val commands = rawLines.map { line ->
             when {
                 plugin.macroManager.isWaitCommand(line) -> line
@@ -144,7 +131,6 @@ class MacroEngine(private val plugin: OyasaiMenu) : Listener {
             event.player.sendMessage(c("&c$err"))
         } else {
             event.player.sendMessage(c("&aマクロ「&e${macro.name}&a」を更新しました。&f${commands.size}&a個"))
-            // 確認用に内容を表示
             commands.take(5).forEachIndexed { i, cmd ->
                 if (plugin.macroManager.isWaitCommand(cmd))
                     event.player.sendMessage(c("  &7${i+1}. ⏱ $cmd"))
@@ -197,13 +183,15 @@ class MacroEngine(private val plugin: OyasaiMenu) : Listener {
             listOf("&7現在: &f${macros.size} &7/ &f$maxMacros")
         ))
         inv.setItem(53, makeItem(Material.BOOK, "&7ヒント", listOf(
-            "&e左クリック &7→ 実行", "&e右クリック &7→ 詳細・編集"
+            "&e左クリック &7→ 実行", "&e右クリック &7→ 詳細・編集",
+            "", "&7ID形式: &f<mcid>_<マクロ名>"
         )))
         return inv
     }
 
     private fun buildMacroItem(macro: PlayerMacro): ItemStack {
         val item = makeItem(Material.COMMAND_BLOCK, "&e${macro.name}", buildList {
+            add("&8ID: ${macro.id}")
             add("&7コマンド (${macro.commands.size} 個):")
             macro.commands.take(5).forEach { cmd ->
                 if (plugin.macroManager.isWaitCommand(cmd)) add("&8  ⏱ $cmd")
@@ -226,7 +214,7 @@ class MacroEngine(private val plugin: OyasaiMenu) : Listener {
         val inv = Bukkit.createInventory(null, 54, comp("&6マクロ詳細: &e${macro.name}"))
 
         inv.setItem(10, makeItem(Material.NAME_TAG, "&a名前を変更",
-            listOf("&f${macro.name}", "", "&eクリックしてチャットで入力")))
+            listOf("&f${macro.name}", "&8ID: ${macro.id}", "", "&eクリックしてチャットで入力")))
 
         inv.setItem(12, makeItem(Material.WRITABLE_BOOK, "&b本でコマンドを編集",
             buildList {
@@ -318,16 +306,27 @@ class MacroEngine(private val plugin: OyasaiMenu) : Listener {
                         player.sendMessage(c("&eキャンセルしました。")); openMacroList(player); return@Runnable
                     }
                     if (state.macroId == null) {
-                        val tmpId = "macro_${UUID.randomUUID().toString().take(8)}"
+                        // ★ ID を "<mcid>_<入力名>" 形式で生成
+                        //   スペースや記号はアンダースコアに置換してファイル名安全にする
+                        val mcid = player.name.lowercase()
+                        val safeName = input.lowercase()
+                            .replace(Regex("[^a-z0-9_\\-]"), "_")
+                            .take(32)
+                        val baseId = "${mcid}_${safeName}"
+                        // 重複時は末尾に連番を付ける
+                        val existingIds = plugin.macroManager.getMacros(player.uniqueId).map { it.id }.toSet()
+                        val newId = generateUniqueId(baseId, existingIds)
+
                         plugin.macroManager.addMacro(player.uniqueId, PlayerMacro(
-                            id = tmpId, name = input, ownerUUID = uuid, commands = emptyList()
+                            id = newId, name = input, ownerUUID = uuid, commands = emptyList()
                         ))
-                        player.sendMessage(c("&7マクロ名: &f$input"))
+                        player.sendMessage(c("&7マクロ名: &f$input &8(ID: $newId)"))
                         player.sendMessage(c("&7次に、本エディタでコマンドを入力します。"))
                         Bukkit.getScheduler().runTaskLater(plugin, Runnable {
-                            openBookEditor(player, tmpId)
+                            openBookEditor(player, newId)
                         }, 1L)
                     } else {
+                        // 名前変更 (ID は変更しない)
                         val macro = plugin.macroManager.getMacro(player.uniqueId, state.macroId)
                         if (macro != null) {
                             plugin.macroManager.updateMacro(player.uniqueId, macro.copy(name = input))
@@ -420,6 +419,7 @@ class MacroEngine(private val plugin: OyasaiMenu) : Listener {
         }
         player.closeInventory()
         player.sendMessage(c("&7マクロ名を入力してください。(&e「cancel」でキャンセル)"))
+        player.sendMessage(c("&7ID は &f<あなたのID>_<マクロ名> &7の形式で自動生成されます。"))
         chatInputPlayers[player.uniqueId.toString()] = ChatInputState(InputMode.MACRO_NAME, null)
     }
 
@@ -442,16 +442,21 @@ class MacroEngine(private val plugin: OyasaiMenu) : Listener {
     private fun getMacroFromSlot(player: Player, slot: Int): PlayerMacro? =
         plugin.macroManager.getMacros(player.uniqueId).getOrNull(slot)
 
-    /**
-     * タイトルからマクロIDを逆引きする。
-     * LegacyComponentSerializer.serialize() は & コード形式で返すため
-     * & カラーコードを除去してマクロ名と比較する。
-     */
     private fun getMacroIdFromTitle(title: String, player: Player): String? {
         val macroName = title
             .substringAfter("マクロ詳細: ").trim()
             .replace("&[0-9a-fk-orA-FK-OR]".toRegex(), "")
         return plugin.macroManager.getMacros(player.uniqueId).find { it.name == macroName }?.id
+    }
+
+    /**
+     * baseId に重複がなければそのまま返し、重複していれば末尾に _2, _3 ... と付与する。
+     */
+    private fun generateUniqueId(baseId: String, existing: Set<String>): String {
+        if (!existing.contains(baseId)) return baseId
+        var counter = 2
+        while (existing.contains("${baseId}_$counter")) counter++
+        return "${baseId}_$counter"
     }
 
     private fun splitIntoPages(text: String, maxChars: Int): List<String> {

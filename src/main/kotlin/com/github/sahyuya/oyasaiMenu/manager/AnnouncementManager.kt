@@ -16,35 +16,20 @@ import java.util.UUID
 /**
  * AnnouncementManager
  *
- * ■ 編集方法 (2種類)
- *
- *   (A) 本と羽ペン (/menuedit announce book)
- *       - 渡された本に内容を書く
- *       - 署名あり → 署名名 = タイトル, 全ページ内容 = Lore
- *       - 署名なし (Done のみ) → Lore のみ更新 / タイトル変更なし
- *       - ページをまたいでも1つのお知らせとして結合される
- *
- *   (B) コマンド
- *       /menuedit announce title <テキスト|JSON>
- *       /menuedit announce line <番号> <テキスト|JSON>
- *       /menuedit announce remove-line <番号>
- *       → いずれも即時 YAML 保存 & 表示更新
- *
- * ■ データ
- *   announcements.yml の先頭1件を「現在のお知らせ」として使用。
- *   MenuEngine は先頭1件をスロット 0〜44 全体に同じ内容で表示する。
+ * ■ 変更点
+ *   署名時 (event.isSigning == true) でも event.isCancelled = true をセットし、
+ *   本が署名済み書籍に変換・消費されるのを防ぐ。
+ *   タイトルはイベント発火時点の newBookMeta から取得する (キャンセル前に読む)。
+ *   これにより本が手元に残ったまま何度でも編集できる。
  */
 class AnnouncementManager(private val plugin: OyasaiMenu) : Listener {
 
     data class Announcement(val title: String, val body: List<String>)
 
-    // インメモリ (先頭1件を直接操作)
     private var currentTitle: String             = "&e✦ ようこそ！"
     private var currentBody: MutableList<String> = mutableListOf()
 
-    // 本エディタ待機中の UUID
     private val pendingBookEditors: MutableSet<UUID> = mutableSetOf()
-
     private val plainText = PlainTextComponentSerializer.plainText()
 
     // ============================
@@ -61,7 +46,7 @@ class AnnouncementManager(private val plugin: OyasaiMenu) : Listener {
     fun reload() = loadAll()
 
     // ============================
-    // 読み取り (MenuEngine から使用)
+    // 読み取り
     // ============================
 
     fun getAnnouncements(): List<Announcement> =
@@ -77,10 +62,6 @@ class AnnouncementManager(private val plugin: OyasaiMenu) : Listener {
         broadcastRefresh()
     }
 
-    /**
-     * 指定インデックスの行をセット / 追加する (1-indexed で渡してくること)。
-     * index が範囲外なら末尾に追加する。
-     */
     fun setLine(index: Int, text: String) {
         while (currentBody.size <= index) currentBody.add("")
         currentBody[index] = text
@@ -88,10 +69,6 @@ class AnnouncementManager(private val plugin: OyasaiMenu) : Listener {
         broadcastRefresh()
     }
 
-    /**
-     * 指定インデックスの行を削除する。
-     * @return エラーメッセージ (成功なら null)
-     */
     fun removeLine(index: Int): String? {
         if (index !in currentBody.indices)
             return "${index + 1} 行目は存在しません (現在 ${currentBody.size} 行)。"
@@ -105,10 +82,6 @@ class AnnouncementManager(private val plugin: OyasaiMenu) : Listener {
     // 本エディタ
     // ============================
 
-    /**
-     * 本と羽ペンを渡して編集モードに入る。
-     * 既存の body を1ページ最大 256 文字でページ分割して事前入力する。
-     */
     fun openBookEditor(player: Player) {
         val book = ItemStack(Material.WRITABLE_BOOK)
         val meta = book.itemMeta as BookMeta
@@ -118,7 +91,8 @@ class AnnouncementManager(private val plugin: OyasaiMenu) : Listener {
                 "ここにお知らせの内容を書いてください。\n" +
                 "改行ごとに Lore の1行になります。\n" +
                 "ページをまたいでも大丈夫です。\n" +
-                "署名すると → 署名名がタイトルになります。"
+                "署名するとその本の名前がタイトルになります。\n" +
+                "※署名後も本は手元に残ります。"
             )
         } else {
             splitIntoPages(currentBody.joinToString("\n"), 254)
@@ -127,7 +101,6 @@ class AnnouncementManager(private val plugin: OyasaiMenu) : Listener {
 
         book.itemMeta = meta
 
-        // 空きスロットに渡す
         val slot = player.inventory.firstEmpty().takeIf { it >= 0 } ?: 8
         player.inventory.setItem(slot, book)
         player.inventory.heldItemSlot = slot
@@ -136,7 +109,7 @@ class AnnouncementManager(private val plugin: OyasaiMenu) : Listener {
 
         player.sendMessage(c("&b=== お知らせ本エディタ ==="))
         player.sendMessage(c("&7各行 → Lore 1行 (ページをまたいでOK)"))
-        player.sendMessage(c("&7署名する → 署名名が &fタイトル&7 になります"))
+        player.sendMessage(c("&7署名する → 署名名が &fタイトル&7 になります (本は手元に残ります)"))
         player.sendMessage(c("&7現在のタイトル: &f${currentTitle.replace('&', '\u00A7')}"))
     }
 
@@ -147,7 +120,7 @@ class AnnouncementManager(private val plugin: OyasaiMenu) : Listener {
     @EventHandler
     fun onPlayerEditBook(event: PlayerEditBookEvent) {
         val uuid = event.player.uniqueId
-        if (!pendingBookEditors.remove(uuid)) return   // このマネージャの本でなければ無視
+        if (!pendingBookEditors.remove(uuid)) return
 
         val meta = event.newBookMeta
 
@@ -160,13 +133,15 @@ class AnnouncementManager(private val plugin: OyasaiMenu) : Listener {
 
         currentBody = newBody.toMutableList()
 
-        // 署名あり → タイトルも更新
+        // 署名あり → タイトルも更新 (キャンセルより先に読む)
         if (event.isSigning) {
             val bookTitle = meta.title()?.let { plainText.serialize(it) }?.trim()
             if (!bookTitle.isNullOrEmpty()) {
                 currentTitle = bookTitle
                 event.player.sendMessage(c("&aタイトル更新: &f${currentTitle.replace('&', '\u00A7')}"))
             }
+            // ★ 署名をキャンセル → 本が署名済み書籍に変換されず手元に残る
+            event.isCancelled = true
         }
 
         saveToFile()
@@ -174,7 +149,7 @@ class AnnouncementManager(private val plugin: OyasaiMenu) : Listener {
 
         event.player.sendMessage(c("&aお知らせを更新しました。Lore &f${currentBody.size}&a行"))
 
-        // 署名しなかった場合は本をインベントリから除去
+        // 署名しなかった場合 (Done) のみ本をインベントリから除去
         if (!event.isSigning) {
             plugin.server.scheduler.runTaskLater(plugin, Runnable {
                 val inv = event.player.inventory
@@ -197,7 +172,6 @@ class AnnouncementManager(private val plugin: OyasaiMenu) : Listener {
         file.parentFile?.mkdirs()
 
         val yaml = YamlConfiguration()
-        // コメント付きヘッダーは再書き込みしないが、キー構造は維持する
         yaml.set("announcements", listOf(
             linkedMapOf(
                 "title" to currentTitle,
@@ -208,7 +182,6 @@ class AnnouncementManager(private val plugin: OyasaiMenu) : Listener {
             .onFailure { e -> plugin.logger.warning("announcements.yml 保存失敗: ${e.message}") }
     }
 
-    /** root メニューを開いているプレイヤー全員を再描画する */
     private fun broadcastRefresh() {
         plugin.server.onlinePlayers.forEach { p ->
             if (plugin.menuEngine.getPlayerState(p)?.menuId == "root") {
@@ -245,9 +218,6 @@ class AnnouncementManager(private val plugin: OyasaiMenu) : Listener {
     private fun createDefault(file: File) {
         file.parentFile?.mkdirs()
         file.writeText("""# announcements.yml
-# 総合メニュー (root) 上部エリア (スロット 0〜44) 全体に表示するお知らせ
-# title: タイトル (&カラーコード対応)
-# body:  Lore行 (リスト)
 announcements:
   - title: '&e✦ ようこそおやさい鯖へ！'
     body:
@@ -262,11 +232,6 @@ announcements:
         plugin.logger.info("announcements.yml をデフォルト内容で作成しました。")
     }
 
-    // ============================
-    // ユーティリティ
-    // ============================
-
-    /** 長い文字列を maxChars 文字以内のページに分割する */
     private fun splitIntoPages(text: String, maxChars: Int): List<String> {
         if (text.length <= maxChars) return listOf(text)
         val pages = mutableListOf<String>()
