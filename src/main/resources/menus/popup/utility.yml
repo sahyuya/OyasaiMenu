@@ -1,12 +1,9 @@
 # ユーティリティメニュー
-# 画像7参照: 青ガラス、5列×5行に各コマンドショートカット
-# ユーティリティはそのまま (底→上でなく左→右の5列構成)
 title: "&9ユーティリティ"
 glass: BLUE_STAINED_GLASS_PANE
 nav_active: 51
 
 items:
-  # ===== 行0: ヘッダー =====
   header_warp:
     slot: 0
     icon: CYAN_CANDLE
@@ -37,7 +34,6 @@ items:
     name: "&dその他"
     lore: ["&7その他の便利機能"]
 
-  # ===== 列1: ワープ (col1, row0〜4) =====
   spawn:
     slot: 1
     icon: RED_BED
@@ -81,7 +77,6 @@ items:
       - {player_cmd: "getmenu"}
       - {close: true}
 
-  # ===== 列2: col2 =====
   warp_shigen:
     slot: 2
     icon: OAK_LOG
@@ -129,7 +124,6 @@ items:
       - {player_cmd: "tpaccept"}
       - {close: true}
 
-  # ===== 列3: col3 =====
   warp_pvp:
     slot: 3
     icon: IRON_SWORD
@@ -177,7 +171,6 @@ items:
       - {player_cmd: "tpdeny"}
       - {close: true}
 
-  # ===== 列4: col4 =====
   warp_casino:
     slot: 4
     icon: GOLD_INGOT
@@ -227,7 +220,6 @@ items:
       - {console_cmd: "give %player% item_frame 1"}
       - {close: true}
 
-  # ===== 列5: col5 =====
   warp_endertt:
     slot: 5
     icon: EXPERIENCE_BOTTLE
@@ -265,7 +257,6 @@ items:
       - {player_cmd: "getdye"}
       - {close: true}
 
-  # ===== 列6: col6 =====
   grindstone:
     slot: 15
     icon: GRINDSTONE
@@ -294,7 +285,6 @@ items:
       - {console_cmd: "give %player% item_frame 1"}
       - {close: true}
 
-  # ===== 列7: col7 =====
   loom:
     slot: 16
     icon: LOOM
@@ -309,7 +299,7 @@ items:
     icon: PURPLE_GLAZED_TERRACOTTA
     name: "&d案内モード"
     lore:
-      - "&7/annnai <player> をチャット欄に表示"
-      - "&7(使い方: /annnai <player>)"
+      - "&7/annnai <player> をチャット欄に入力"
+      - "&7クリック後、プレイヤー名を入力・Enterして下さい"
     actions:
-      - {chat_paste: "/annnai "}
+      - {suggest_command: "/annnai "}

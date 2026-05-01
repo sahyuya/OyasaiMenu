@@ -1,6 +1,7 @@
 package com.github.sahyuya.oyasaiMenu.util
 
 import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.format.TextDecoration
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
 import org.bukkit.Material
 import org.bukkit.inventory.ItemStack
@@ -14,7 +15,7 @@ object GuiUtil {
         item.itemMeta = meta
         return item
     }
-    fun comp(text: String): Component = LegacyComponentSerializer.legacyAmpersand().deserialize(text)
-    fun c(text: String): String = text.replace('&', '\u00A7')
-    fun spacer(mat: Material = Material.GRAY_STAINED_GLASS_PANE): ItemStack = makeItem(mat, " ")
+    fun colorizeComponent(text: String): Component = LegacyComponentSerializer.legacyAmpersand()
+        .deserialize(text).decoration(TextDecoration.ITALIC, false); fun comp(text: String) = colorizeComponent(text)
+    fun colorize(text: String): String = text.replace('&', '\u00A7'); fun c(text: String) = colorize(text)
 }

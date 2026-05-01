@@ -3,8 +3,7 @@ package com.github.sahyuya.oyasaiMenu.engine
 import com.github.sahyuya.oyasaiMenu.OyasaiMenu
 import com.github.sahyuya.oyasaiMenu.manager.EconomyManager
 import com.github.sahyuya.oyasaiMenu.manager.TokenCurrencyManager
-import net.kyori.adventure.text.Component
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
+import com.github.sahyuya.oyasaiMenu.util.GuiUtil.comp
 import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.NamespacedKey
@@ -103,6 +102,4 @@ object NavBar {
         item.itemMeta = meta
         for (i in 0..44) { if (inv.getItem(i) == null) inv.setItem(i, item) }
     }
-
-    private fun comp(t: String): Component = LegacyComponentSerializer.legacyAmpersand().deserialize(t)
 }

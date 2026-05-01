@@ -4,8 +4,8 @@ import com.github.sahyuya.oyasaiMenu.OyasaiMenu
 import com.github.sahyuya.oyasaiMenu.manager.CooldownManager
 import com.github.sahyuya.oyasaiMenu.model.*
 import com.github.sahyuya.oyasaiMenu.util.CustomHead
-import net.kyori.adventure.text.Component
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
+import com.github.sahyuya.oyasaiMenu.util.GuiUtil.c
+import com.github.sahyuya.oyasaiMenu.util.GuiUtil.comp
 import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.NamespacedKey
@@ -139,7 +139,4 @@ class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
             }
         }
     }
-
-    private fun comp(t: String): Component = LegacyComponentSerializer.legacyAmpersand().deserialize(t)
-    private fun c(t: String) = t.replace('&', '\u00A7')
 }

@@ -19,9 +19,9 @@ class OyasaiMenu : JavaPlugin(), Listener {
     lateinit var pointShopLoader:  PointShopLoader
     lateinit var popupMenuLoader:  PopupMenuLoader
 
-    lateinit var macroManager:           MacroManager
-    lateinit var announcementManager:    AnnouncementManager
-    lateinit var sellBlacklistManager:   SellBlacklistManager   // ★ 追加
+    lateinit var macroManager:          MacroManager
+    lateinit var announcementManager:   AnnouncementManager
+    lateinit var sellWhitelistManager:  SellWhitelistManager
 
     lateinit var menuEngine:       MenuEngine
     lateinit var actionEngine:     ActionEngine
@@ -40,9 +40,9 @@ class OyasaiMenu : JavaPlugin(), Listener {
         pointShopLoader  = PointShopLoader(this)
         popupMenuLoader  = PopupMenuLoader(this)
 
-        macroManager           = MacroManager(this)
-        announcementManager    = AnnouncementManager(this)
-        sellBlacklistManager   = SellBlacklistManager(this)   // ★
+        macroManager         = MacroManager(this)
+        announcementManager  = AnnouncementManager(this)
+        sellWhitelistManager = SellWhitelistManager(this)
 
         menuEngine       = MenuEngine(this)
         actionEngine     = ActionEngine(this)
@@ -58,7 +58,7 @@ class OyasaiMenu : JavaPlugin(), Listener {
         pointShopLoader.loadAll()
         popupMenuLoader.loadAll()
         announcementManager.loadAll()
-        sellBlacklistManager.loadAll()          // ★
+        sellWhitelistManager.loadAll()
         EconomyManager.init(this)
         TokenCurrencyManager.init(this)
         CooldownManager.init(this)
@@ -117,7 +117,7 @@ class OyasaiMenu : JavaPlugin(), Listener {
         pointShopLoader.reload()
         popupMenuLoader.reload()
         announcementManager.reload()
-        sellBlacklistManager.reload()           // ★
+        sellWhitelistManager.reload()
         EconomyManager.init(this)
         TokenCurrencyManager.init(this)
         CooldownManager.reload(this)

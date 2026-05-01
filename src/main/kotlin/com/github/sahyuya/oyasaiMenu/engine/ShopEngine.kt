@@ -7,8 +7,10 @@ import com.github.sahyuya.oyasaiMenu.model.PlayerShopState
 import com.github.sahyuya.oyasaiMenu.model.ShopCategory
 import com.github.sahyuya.oyasaiMenu.model.ShopItem
 import com.github.sahyuya.oyasaiMenu.model.ShopQuantity
+import com.github.sahyuya.oyasaiMenu.util.GuiUtil.c
+import com.github.sahyuya.oyasaiMenu.util.GuiUtil.comp
+import com.github.sahyuya.oyasaiMenu.util.GuiUtil.makeItem
 import net.kyori.adventure.text.Component
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
 import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.entity.Player
@@ -42,7 +44,7 @@ class ShopEngine(private val plugin: OyasaiMenu) : Listener {
     }
 
     private fun buildShopInventory(player: Player, category: ShopCategory, state: PlayerShopState): Inventory {
-        val inv = Bukkit.createInventory(null, 54, comp("${cc(category.displayName)} &8| &f${state.page + 1}&8/&f${category.pageCount}"))
+        val inv = Bukkit.createInventory(null, 54, comp("${c(category.displayName)} &8| &f${state.page + 1}&8/&f${category.pageCount}"))
         category.getPage(state.page).forEachIndexed { i, item ->
             if (item.material != null) inv.setItem(i, buildShopItemStack(item, if (item.enchantments.isNotEmpty()) 1 else state.quantity.amount))
         }
@@ -168,10 +170,4 @@ class ShopEngine(private val plugin: OyasaiMenu) : Listener {
             if (item.amount <= remaining) { remaining -= item.amount; player.inventory.setItem(i, null) } else { item.amount -= remaining; remaining = 0 }
         }; return quantity - remaining
     }
-    private fun makeItem(mat: Material, name: String, lore: List<String> = emptyList()): ItemStack {
-        val item = ItemStack(mat); val meta = item.itemMeta ?: return item; meta.displayName(comp(name))
-        if (lore.isNotEmpty()) meta.lore(lore.map { comp(it) }); item.itemMeta = meta; return item
-    }
-    private fun comp(text: String): Component = LegacyComponentSerializer.legacyAmpersand().deserialize(text)
-    private fun cc(text: String) = text.replace('&', '\u00A7'); private fun c(text: String) = cc(text)
 }

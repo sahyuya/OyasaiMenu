@@ -1,45 +1,35 @@
 package com.github.sahyuya.oyasaiMenu.command
 
 import com.github.sahyuya.oyasaiMenu.OyasaiMenu
+import com.github.sahyuya.oyasaiMenu.util.GuiUtil.c
 import io.papermc.paper.command.brigadier.BasicCommand
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import org.bukkit.Bukkit
-import org.bukkit.Material
 import org.bukkit.entity.Player
 
 /**
- * /menuedit — 管理用コマンド
+ * /menuedit
  *
- * サブコマンド:
- *   /menuedit announce title <text|JSON>
- *   /menuedit announce line <番号> <text|JSON>
- *   /menuedit announce remove-line <番号>
- *   /menuedit announce book
- *   /menuedit announce show
- *
- *   /menuedit shop <category> list
- *   /menuedit shop <category> add <material> <buy> <sell>
- *   /menuedit shop <category> remove <index>
- *
- *   /menuedit blacklist list
- *   /menuedit blacklist add <material>
- *   /menuedit blacklist remove <material>
+ *   /menuedit announce title|line|remove-line|book|show
+ *   /menuedit shop <category> list|add|remove
+ *   /menuedit whitelist list|add hand|h <売値>|remove <番号>
  */
 @Suppress("UnstableApiUsage")
 class MenuAdminCommand(private val plugin: OyasaiMenu) : BasicCommand {
 
+    private val plain = PlainTextComponentSerializer.plainText()
+
     override fun execute(source: CommandSourceStack, args: Array<out String>) {
         val player = source.sender as? Player
             ?: run { source.sender.sendMessage("§cこのコマンドはゲーム内から実行してください。"); return }
-        if (!player.hasPermission("oyasaimenu.admin")) {
-            player.sendMessage(c("&c編集権限がありません。")); return
-        }
+        if (!player.hasPermission("oyasaimenu.admin")) { player.sendMessage(c("&c編集権限がありません。")); return }
         when (args.getOrNull(0)?.lowercase()) {
             "announce"  -> handleAnnounce(player, args.drop(1).toTypedArray())
             "shop"      -> handleShop(player, args.drop(1).toTypedArray())
-            "blacklist" -> handleBlacklist(player, args.drop(1).toTypedArray())
+            "whitelist" -> handleWhitelist(player, args.drop(1).toTypedArray())
             else        -> sendHelp(player)
         }
     }
@@ -52,30 +42,25 @@ class MenuAdminCommand(private val plugin: OyasaiMenu) : BasicCommand {
         when (args.getOrNull(0)?.lowercase()) {
             "title" -> {
                 if (args.size < 2) { player.sendMessage(c("&c使い方: /menuedit announce title <テキスト|JSON>")); return }
-                val text = parseTextInput(args.drop(1).joinToString(" "))
-                plugin.announcementManager.setTitle(text)
+                plugin.announcementManager.setTitle(parseTextInput(args.drop(1).joinToString(" ")))
                 player.sendMessage(c("&aタイトルを更新しました。"))
             }
             "line" -> {
                 if (args.size < 3) { player.sendMessage(c("&c使い方: /menuedit announce line <番号> <テキスト|JSON>")); return }
                 val lineNum = args[1].toIntOrNull()?.minus(1)
                 if (lineNum == null || lineNum < 0) { player.sendMessage(c("&c番号は 1 以上の整数で指定してください。")); return }
-                val text = parseTextInput(args.drop(2).joinToString(" "))
-                plugin.announcementManager.setLine(lineNum, text)
+                plugin.announcementManager.setLine(lineNum, parseTextInput(args.drop(2).joinToString(" ")))
                 player.sendMessage(c("&a${lineNum + 1} 行目を更新しました。"))
             }
             "remove-line" -> {
                 val lineNum = args.getOrNull(1)?.toIntOrNull()?.minus(1)
                 if (lineNum == null || lineNum < 0) { player.sendMessage(c("&c使い方: /menuedit announce remove-line <番号>")); return }
                 val err = plugin.announcementManager.removeLine(lineNum)
-                if (err != null) player.sendMessage(c("&c$err"))
-                else player.sendMessage(c("&a${lineNum + 1} 行目を削除しました。"))
+                if (err != null) player.sendMessage(c("&c$err")) else player.sendMessage(c("&a${lineNum + 1} 行目を削除しました。"))
             }
             "book" -> {
                 player.closeInventory()
-                Bukkit.getScheduler().runTaskLater(plugin, Runnable {
-                    plugin.announcementManager.openBookEditor(player)
-                }, 1L)
+                Bukkit.getScheduler().runTaskLater(plugin, Runnable { plugin.announcementManager.openBookEditor(player) }, 1L)
             }
             "show" -> {
                 val ann = plugin.announcementManager.getAnnouncements().firstOrNull()
@@ -89,8 +74,8 @@ class MenuAdminCommand(private val plugin: OyasaiMenu) : BasicCommand {
                 player.sendMessage(c("&f/menuedit announce title &7<テキスト|JSON>"))
                 player.sendMessage(c("&f/menuedit announce line &7<番号> <テキスト|JSON>"))
                 player.sendMessage(c("&f/menuedit announce remove-line &7<番号>"))
-                player.sendMessage(c("&f/menuedit announce book &7— 本と羽ペンで編集"))
-                player.sendMessage(c("&f/menuedit announce show &7— 現在の内容を確認"))
+                player.sendMessage(c("&f/menuedit announce book"))
+                player.sendMessage(c("&f/menuedit announce show"))
             }
         }
     }
@@ -106,7 +91,7 @@ class MenuAdminCommand(private val plugin: OyasaiMenu) : BasicCommand {
             player.sendMessage(c("&f/menuedit shop &7<category> list"))
             player.sendMessage(c("&f/menuedit shop &7<category> add <material> <buy> <sell>"))
             player.sendMessage(c("&f/menuedit shop &7<category> remove <index>"))
-            player.sendMessage(c("&7カテゴリ一覧: ${plugin.shopLoader.getAllCategories().keys.joinToString(", ")}"))
+            player.sendMessage(c("&7カテゴリ: ${plugin.shopLoader.getAllCategories().keys.joinToString(", ")}"))
             return
         }
         val category = plugin.shopLoader.getCategory(categoryId)
@@ -115,22 +100,18 @@ class MenuAdminCommand(private val plugin: OyasaiMenu) : BasicCommand {
                 if (category == null) { player.sendMessage(c("&cカテゴリ '$categoryId' が見つかりません。")); return }
                 player.sendMessage(c("&b--- ショップ: $categoryId (${category.items.size}種) ---"))
                 category.items.forEachIndexed { i, item ->
-                    val name = item.customName ?: item.materialId
-                    player.sendMessage(c("&7${i+1}. &f$name &7buy:&a${item.buyPrice} &7sell:&b${item.sellPrice}"))
+                    player.sendMessage(c("&7${i+1}. &f${item.customName ?: item.materialId} &7buy:&a${item.buyPrice} &7sell:&b${item.sellPrice}"))
                 }
             }
             "add" -> {
                 if (args.size < 5) { player.sendMessage(c("&c使い方: /menuedit shop <category> add <material> <buy> <sell>")); return }
-                val matName = args[2].uppercase()
+                val matName   = args[2].uppercase()
                 val buyPrice  = args[3].toDoubleOrNull() ?: run { player.sendMessage(c("&c買値が不正です。")); return }
                 val sellPrice = args[4].toDoubleOrNull() ?: run { player.sendMessage(c("&c売値が不正です。")); return }
-                val mat = runCatching { Material.valueOf(matName) }.getOrElse {
-                    player.sendMessage(c("&c不明なマテリアル: $matName")); return
-                }
-                val shopFile = plugin.shopLoader.addItem(categoryId, matName.lowercase(), buyPrice, sellPrice)
-                if (shopFile != null) {
+                runCatching { org.bukkit.Material.valueOf(matName) }.getOrElse { player.sendMessage(c("&c不明なマテリアル: $matName")); return }
+                if (plugin.shopLoader.addItem(categoryId, matName.lowercase(), buyPrice, sellPrice) != null) {
                     plugin.shopLoader.reload()
-                    player.sendMessage(c("&aショップ '$categoryId' に ${mat.name.lowercase()} を追加しました。(buy:$buyPrice / sell:$sellPrice)"))
+                    player.sendMessage(c("&a'$categoryId' に ${matName.lowercase()} を追加しました。"))
                 } else {
                     player.sendMessage(c("&cカテゴリ '$categoryId' が見つかりません。"))
                 }
@@ -142,77 +123,78 @@ class MenuAdminCommand(private val plugin: OyasaiMenu) : BasicCommand {
                     player.sendMessage(c("&c番号は 1〜${category.items.size} で指定してください。")); return
                 }
                 val removed = plugin.shopLoader.removeItem(categoryId, index)
-                if (removed != null) {
-                    plugin.shopLoader.reload()
-                    player.sendMessage(c("&a${index+1}番目のアイテム ($removed) を削除しました。"))
-                } else {
-                    player.sendMessage(c("&c削除に失敗しました。"))
-                }
+                if (removed != null) { plugin.shopLoader.reload(); player.sendMessage(c("&a${index+1}番目 ($removed) を削除しました。")) }
+                else player.sendMessage(c("&c削除に失敗しました。"))
             }
-            else -> {
-                player.sendMessage(c("&c使い方: /menuedit shop <category> [list/add/remove]"))
-            }
+            else -> player.sendMessage(c("&c使い方: /menuedit shop <category> [list/add/remove]"))
         }
     }
 
     // ============================
-    // blacklist
+    // whitelist
     // ============================
 
-    private fun handleBlacklist(player: Player, args: Array<String>) {
+    private fun handleWhitelist(player: Player, args: Array<String>) {
         when (args.getOrNull(0)?.lowercase()) {
             "list" -> {
-                val mats = plugin.sellBlacklistManager.getMaterials()
-                if (mats.isEmpty()) { player.sendMessage(c("&7販売ブラックリストは空です。")); return }
-                player.sendMessage(c("&b--- 販売ブラックリスト (${mats.size}種) ---"))
-                mats.sortedBy { it.name }.forEach { player.sendMessage(c("&7- ${it.name.lowercase()}")) }
+                val entries = plugin.sellWhitelistManager.getEntries()
+                if (entries.isEmpty()) { player.sendMessage(c("&7売却ホワイトリストは空です。")); return }
+                player.sendMessage(c("&b--- 売却ホワイトリスト (${entries.size}件) ---"))
+                entries.forEachIndexed { i, e ->
+                    player.sendMessage(c("&7${i+1}. &f${e.displayName} &7(${e.materialName.lowercase()}) &a売値: ${e.sellPrice}"))
+                }
             }
             "add" -> {
-                val matName = args.getOrNull(1)?.uppercase() ?: run { player.sendMessage(c("&c使い方: /menuedit blacklist add <material>")); return }
-                val mat = runCatching { Material.valueOf(matName) }.getOrElse {
-                    player.sendMessage(c("&c不明なマテリアル: $matName")); return
+                val target = args.getOrNull(1)?.lowercase()
+                if (target != "hand" && target != "h") {
+                    player.sendMessage(c("&c使い方: /menuedit whitelist add hand/h <売値>")); return
                 }
-                if (plugin.sellBlacklistManager.addMaterial(mat)) {
-                    player.sendMessage(c("&a${mat.name.lowercase()} をブラックリストに追加しました。"))
+                val sellPrice = args.getOrNull(2)?.toDoubleOrNull()
+                if (sellPrice == null || sellPrice <= 0) {
+                    player.sendMessage(c("&c売値に正の数値を指定してください。")); return
+                }
+                val item = player.inventory.itemInMainHand
+                if (item.type.isAir) { player.sendMessage(c("&c手にアイテムを持ってください。")); return }
+
+                val hasCustomName = item.itemMeta?.hasDisplayName() == true
+                if (!hasCustomName) {
+                    player.sendMessage(c("&e注意: カスタム名のないアイテムです。バニラ名アイテムはショップ登録だけで売れます。"))
+                }
+
+                val err = plugin.sellWhitelistManager.addEntry(item, sellPrice)
+                if (err != null) {
+                    player.sendMessage(c("&c追加失敗: $err"))
                 } else {
-                    player.sendMessage(c("&7${mat.name.lowercase()} は既にブラックリストに登録済みです。"))
+                    val dispName = if (hasCustomName && item.itemMeta?.hasDisplayName() == true)
+                        plain.serialize(item.itemMeta!!.displayName()!!)
+                    else item.type.name.lowercase()
+                    player.sendMessage(c("&aホワイトリストに追加しました: &f$dispName &a売値: &f${sellPrice}"))
+                    player.sendMessage(c("&7マテリアル: &f${item.type.name.lowercase()}  エンチャント: &f${item.itemMeta?.enchants?.size ?: 0}種"))
                 }
             }
             "remove" -> {
-                val matName = args.getOrNull(1)?.uppercase() ?: run { player.sendMessage(c("&c使い方: /menuedit blacklist remove <material>")); return }
-                val mat = runCatching { Material.valueOf(matName) }.getOrElse {
-                    player.sendMessage(c("&c不明なマテリアル: $matName")); return
-                }
-                if (plugin.sellBlacklistManager.removeMaterial(mat)) {
-                    player.sendMessage(c("&a${mat.name.lowercase()} をブラックリストから削除しました。"))
-                } else {
-                    player.sendMessage(c("&7${mat.name.lowercase()} はブラックリストに登録されていません。"))
-                }
+                val index = args.getOrNull(1)?.toIntOrNull()
+                if (index == null || index < 1) { player.sendMessage(c("&c使い方: /menuedit whitelist remove <番号>")); return }
+                val removed = plugin.sellWhitelistManager.removeEntry(index)
+                if (removed != null) player.sendMessage(c("&aホワイトリストから削除しました: &f$removed"))
+                else player.sendMessage(c("&c番号が不正です。1〜${plugin.sellWhitelistManager.getEntries().size} で指定してください。"))
             }
             else -> {
-                player.sendMessage(c("&b--- /menuedit blacklist ---"))
-                player.sendMessage(c("&f/menuedit blacklist list &7— 一覧表示"))
-                player.sendMessage(c("&f/menuedit blacklist add &7<material> — 追加"))
-                player.sendMessage(c("&f/menuedit blacklist remove &7<material> — 削除"))
-                player.sendMessage(c("&7カスタム名チェック: config.yml の sell-blacklist.block-renamed"))
+                player.sendMessage(c("&b--- /menuedit whitelist ---"))
+                player.sendMessage(c("&f/menuedit whitelist list &7— 一覧"))
+                player.sendMessage(c("&f/menuedit whitelist add hand|h &7<売値> — 手持ちアイテムを追加"))
+                player.sendMessage(c("&f/menuedit whitelist remove &7<番号> — 削除"))
+                player.sendMessage(c("&7比較: type / カスタム名 / エンチャント (耐久値は無視)"))
             }
         }
     }
-
-    // ============================
-    // ヘルプ
-    // ============================
 
     private fun sendHelp(player: Player) {
         player.sendMessage(c("&b&l/menuedit &7— 管理コマンド"))
         player.sendMessage(c("&f/menuedit announce &7— お知らせの編集"))
         player.sendMessage(c("&f/menuedit shop &7— ショップの商品管理"))
-        player.sendMessage(c("&f/menuedit blacklist &7— 販売ブラックリスト管理"))
+        player.sendMessage(c("&f/menuedit whitelist &7— 売却ホワイトリスト管理"))
     }
-
-    // ============================
-    // ユーティリティ
-    // ============================
 
     private fun parseTextInput(raw: String): String {
         val trimmed = raw.trim()
@@ -226,31 +208,31 @@ class MenuAdminCommand(private val plugin: OyasaiMenu) : BasicCommand {
         val prefix = args.lastOrNull() ?: ""
         return when {
             args.size <= 1 ->
-                listOf("announce", "shop", "blacklist").filter { it.startsWith(prefix, ignoreCase = true) }
+                listOf("announce","shop","whitelist").filter { it.startsWith(prefix, ignoreCase = true) }
             args.size == 2 -> when (args[0].lowercase()) {
-                "announce"  -> listOf("title","line","remove-line","book","show").filter { it.startsWith(prefix, ignoreCase = true) }
-                "shop"      -> plugin.shopLoader.getAllCategories().keys.filter { it.startsWith(prefix, ignoreCase = true) }
-                "blacklist" -> listOf("list","add","remove").filter { it.startsWith(prefix, ignoreCase = true) }
+                "announce"  -> listOf("title","line","remove-line","book","show")
+                "shop"      -> plugin.shopLoader.getAllCategories().keys.toList()
+                "whitelist" -> listOf("list","add","remove")
                 else -> emptyList()
-            }
+            }.filter { it.startsWith(prefix, ignoreCase = true) }
             args.size == 3 -> when {
                 args[0].equals("announce", ignoreCase = true) && args[1].equals("line", ignoreCase = true) -> {
                     val max = (plugin.announcementManager.getAnnouncements().firstOrNull()?.body?.size ?: 0) + 1
-                    (1..max).map { it.toString() }.filter { it.startsWith(prefix) }
+                    (1..max).map { it.toString() }
                 }
                 args[0].equals("announce", ignoreCase = true) && args[1].equals("remove-line", ignoreCase = true) -> {
                     val size = plugin.announcementManager.getAnnouncements().firstOrNull()?.body?.size ?: 0
-                    (1..size).map { it.toString() }.filter { it.startsWith(prefix) }
+                    (1..size).map { it.toString() }
                 }
-                args[0].equals("shop", ignoreCase = true) ->
-                    listOf("list","add","remove").filter { it.startsWith(prefix, ignoreCase = true) }
-                args[0].equals("blacklist", ignoreCase = true) && (args[1].equals("add", ignoreCase = true) || args[1].equals("remove", ignoreCase = true)) ->
-                    plugin.sellBlacklistManager.getMaterials().map { it.name.lowercase() }.filter { it.startsWith(prefix, ignoreCase = true) }
+                args[0].equals("shop", ignoreCase = true) -> listOf("list","add","remove")
+                args[0].equals("whitelist", ignoreCase = true) && args[1].equals("add", ignoreCase = true) -> listOf("hand","h")
+                args[0].equals("whitelist", ignoreCase = true) && args[1].equals("remove", ignoreCase = true) -> {
+                    val size = plugin.sellWhitelistManager.getEntries().size
+                    (1..size).map { it.toString() }
+                }
                 else -> emptyList()
-            }
+            }.filter { it.startsWith(prefix, ignoreCase = true) }
             else -> emptyList()
         }
     }
-
-    private fun c(t: String) = t.replace('&', '\u00A7')
 }

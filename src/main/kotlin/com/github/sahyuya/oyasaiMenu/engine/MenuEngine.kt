@@ -6,9 +6,9 @@ import com.github.sahyuya.oyasaiMenu.model.MenuDefinition
 import com.github.sahyuya.oyasaiMenu.model.MenuItemDefinition
 import com.github.sahyuya.oyasaiMenu.model.PlayerMenuState
 import com.github.sahyuya.oyasaiMenu.util.CustomHead
+import com.github.sahyuya.oyasaiMenu.util.GuiUtil.c
+import com.github.sahyuya.oyasaiMenu.util.GuiUtil.comp
 import me.clip.placeholderapi.PlaceholderAPI
-import net.kyori.adventure.text.Component
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
 import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.entity.Player
@@ -45,7 +45,7 @@ class MenuEngine(private val plugin: OyasaiMenu) : Listener {
         val menuDef = plugin.menuLoader.getMenu(menuId)
             ?: if (menuId == "root") rootFallback
             else {
-                player.sendMessage(colorize("&cメニューが見つかりません: $menuId"))
+                player.sendMessage(c("&cメニューが見つかりません: $menuId"))
                 plugin.logger.warning("存在しないメニューID: $menuId (player=${player.name})")
                 return
             }
@@ -56,8 +56,8 @@ class MenuEngine(private val plugin: OyasaiMenu) : Listener {
 
     fun openMenuInEditMode(player: Player, menuId: String) {
         val menuDef = plugin.menuLoader.getMenu(menuId)
-            ?: run { player.sendMessage(colorize("&cメニューが見つかりません: $menuId")); return }
-        val inv = Bukkit.createInventory(null, 54, colorizeComponent("&c[編集] ${menuDef.title}"))
+            ?: run { player.sendMessage(c("&cメニューが見つかりません: $menuId")); return }
+        val inv = Bukkit.createInventory(null, 54, comp("&c[編集] ${menuDef.title}"))
         menuDef.items.values.forEach { if (it.slot < 45) inv.setItem(it.slot, buildItemStack(player, it)) }
         setupEditToolbar(inv)
         player.openInventory(inv)
@@ -93,7 +93,7 @@ class MenuEngine(private val plugin: OyasaiMenu) : Listener {
 
     private fun buildInventory(player: Player, menuDef: MenuDefinition, page: Int): Inventory {
         val title = applyPlaceholders(player, menuDef.title)
-        val inv   = Bukkit.createInventory(null, menuDef.size, colorizeComponent(title))
+        val inv   = Bukkit.createInventory(null, menuDef.size, comp(title))
         menuDef.items.values.forEach { itemDef ->
             if (itemDef.icon.isAir) return@forEach                                          // AIR = 空スロット
             if (itemDef.permission != null && !player.hasPermission(itemDef.permission)) return@forEach
@@ -114,8 +114,8 @@ class MenuEngine(private val plugin: OyasaiMenu) : Listener {
 
     private fun makeGlass(mat: Material, name: String, lore: List<String> = emptyList()): ItemStack {
         val item = ItemStack(mat); val meta = item.itemMeta!!
-        meta.displayName(colorizeComponent(name))
-        if (lore.isNotEmpty()) meta.lore(lore.map { colorizeComponent(it) })
+        meta.displayName(comp(name))
+        if (lore.isNotEmpty()) meta.lore(lore.map { comp(it) })
         item.itemMeta = meta; return item
     }
 
@@ -130,8 +130,8 @@ class MenuEngine(private val plugin: OyasaiMenu) : Listener {
             else -> ItemStack(itemDef.icon)
         }
         val meta = item.itemMeta ?: return item
-        meta.displayName(colorizeComponent(applyPlaceholders(player, itemDef.name)))
-        val lore = itemDef.lore.map { colorizeComponent(applyPlaceholders(player, it)) }
+        meta.displayName(comp(applyPlaceholders(player, itemDef.name)))
+        val lore = itemDef.lore.map { comp(applyPlaceholders(player, it)) }
         if (lore.isNotEmpty()) meta.lore(lore)
         item.itemMeta = meta; return item
     }
@@ -141,19 +141,19 @@ class MenuEngine(private val plugin: OyasaiMenu) : Listener {
         listOf(T(45,Material.ARROW,"&c← 戻る"),T(46,Material.EMERALD,"&a保存"),T(47,Material.BARRIER,"&eキャンセル"),
             T(48,Material.ENDER_EYE,"&bテスト表示"),T(49,Material.BOOK,"&dページ設定"),T(50,Material.NETHER_STAR,"&6新規アイテム追加"),
             T(51,Material.PAPER,"&fコピー"),T(52,Material.TNT,"&4削除モード"),T(53,Material.COMPARATOR,"&7設定")).forEach { t ->
-            val item = ItemStack(t.mat); val meta = item.itemMeta!!; meta.displayName(colorizeComponent(t.name)); item.itemMeta = meta; inv.setItem(t.slot, item)
+            val item = ItemStack(t.mat); val meta = item.itemMeta!!; meta.displayName(comp(t.name)); item.itemMeta = meta; inv.setItem(t.slot, item)
         }
     }
 
     private fun handleEditClick(player: Player, state: PlayerMenuState, slot: Int, event: InventoryClickEvent) {
         when (slot) {
             45 -> { player.closeInventory(); val parentId = state.menuId.substringBeforeLast("/","root"); if (parentId != state.menuId) openMenu(player, parentId) }
-            46 -> player.sendMessage(colorize("&a保存しました。(YAML書き出しは実装予定)"))
-            47 -> { player.closeInventory(); player.sendMessage(colorize("&e編集をキャンセルしました。")) }
+            46 -> player.sendMessage(c("&a保存しました。(YAML書き出しは実装予定)"))
+            47 -> { player.closeInventory(); player.sendMessage(c("&e編集をキャンセルしました。")) }
             48 -> openMenu(player, state.menuId)
-            50 -> player.sendMessage(colorize("&6空スロットをクリックしてアイテムを追加。(実装予定)"))
-            52 -> player.sendMessage(colorize("&4削除モード切替。(実装予定)"))
-            in 0..44 -> { if (event.isRightClick) plugin.actionEngine.openItemEditor(player, state.menuId, slot) else player.sendMessage(colorize("&7スロット $slot を選択。右クリックで詳細編集。")) }
+            50 -> player.sendMessage(c("&6空スロットをクリックしてアイテムを追加。(実装予定)"))
+            52 -> player.sendMessage(c("&4削除モード切替。(実装予定)"))
+            in 0..44 -> { if (event.isRightClick) plugin.actionEngine.openItemEditor(player, state.menuId, slot) else player.sendMessage(c("&7スロット $slot を選択。右クリックで詳細編集。")) }
         }
     }
 
@@ -164,8 +164,6 @@ class MenuEngine(private val plugin: OyasaiMenu) : Listener {
         if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) result = PlaceholderAPI.setPlaceholders(player, result)
         return result
     }
-    fun colorizeComponent(text: String): Component = LegacyComponentSerializer.legacyAmpersand().deserialize(text)
-    fun colorize(text: String): String = text.replace('&', '\u00A7')
     fun getPlayerState(player: Player): PlayerMenuState? = playerStates[player.uniqueId.toString()]
     fun clearCache() = staticCache.clear()
 }

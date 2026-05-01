@@ -5,6 +5,8 @@ import com.github.sahyuya.oyasaiMenu.model.ActionType
 import com.github.sahyuya.oyasaiMenu.model.MenuAction
 import com.github.sahyuya.oyasaiMenu.model.MenuItemDefinition
 import com.github.sahyuya.oyasaiMenu.model.PlayerMenuState
+import com.github.sahyuya.oyasaiMenu.util.GuiUtil.c
+import com.github.sahyuya.oyasaiMenu.util.GuiUtil.comp
 import net.luckperms.api.LuckPermsProvider
 import org.bukkit.Bukkit
 import org.bukkit.entity.Player
@@ -71,7 +73,7 @@ class ActionEngine(private val plugin: OyasaiMenu) {
 
             ActionType.MESSAGE -> {
                 val text = applyPlaceholders(player, action.getString("text"))
-                player.sendMessage(plugin.menuEngine.colorize(text))
+                player.sendMessage(c(text))
             }
 
             ActionType.CLOSE_MENU -> player.closeInventory()
@@ -86,7 +88,7 @@ class ActionEngine(private val plugin: OyasaiMenu) {
                 // MacroManager 経由でクールダウンチェックとコマンド実行を委譲
                 val macroId = action.getString("id")
                 val error = plugin.macroManager.executeMacro(player, macroId)
-                if (error != null) player.sendMessage(plugin.menuEngine.colorize("&c$error"))
+                if (error != null) player.sendMessage(c("&c$error"))
             }
 
             ActionType.SOUND -> {
@@ -99,9 +101,7 @@ class ActionEngine(private val plugin: OyasaiMenu) {
             }
 
             ActionType.BROADCAST -> {
-                Bukkit.broadcastMessage(plugin.menuEngine.colorize(
-                    applyPlaceholders(player, action.getString("text"))
-                ))
+                Bukkit.broadcastMessage(c(applyPlaceholders(player, action.getString("text"))))
             }
 
             ActionType.DISCORD_FETCH -> {
@@ -111,7 +111,7 @@ class ActionEngine(private val plugin: OyasaiMenu) {
 
             ActionType.PLACEHOLDER_TEXT -> {
                 val text = applyPlaceholders(player, action.getString("text"))
-                player.sendMessage(plugin.menuEngine.colorize(text))
+                player.sendMessage(c(text))
             }
 
             ActionType.OPEN_SHOP -> {
@@ -210,7 +210,7 @@ class ActionEngine(private val plugin: OyasaiMenu) {
             Bukkit.getScheduler().runTask(plugin, Runnable {
                 val format = action.getString("format", "&7%message%")
                 messages.forEach { msg ->
-                    player.sendMessage(plugin.menuEngine.colorize(format.replace("%message%", msg)))
+                    player.sendMessage(c(format.replace("%message%", msg)))
                 }
             })
         })
@@ -230,7 +230,7 @@ class ActionEngine(private val plugin: OyasaiMenu) {
         val itemDef = menuDef.items.values.find { it.slot == slot }
 
         val inv = Bukkit.createInventory(null, 54,
-            plugin.menuEngine.colorizeComponent("&8アイテム編集: スロット $slot"))
+            comp("&8アイテム編集: スロット $slot"))
 
         // タブ行 (0〜4)
         listOf(
@@ -249,13 +249,13 @@ class ActionEngine(private val plugin: OyasaiMenu) {
         inv.setItem(53, makeGuiItem(org.bukkit.Material.BARRIER,  "&cキャンセル"))
 
         player.openInventory(inv)
-        player.sendMessage(plugin.menuEngine.colorize("&7詳細編集 GUI (タブ機能は開発中)"))
+        player.sendMessage(c("&7詳細編集 GUI (タブ機能は開発中)"))
     }
 
     private fun makeGuiItem(mat: org.bukkit.Material, name: String): ItemStack {
         val item = ItemStack(mat)
         val meta = item.itemMeta!!
-        meta.displayName(plugin.menuEngine.colorizeComponent(name))
+        meta.displayName(comp(name))
         item.itemMeta = meta
         return item
     }
@@ -263,8 +263,8 @@ class ActionEngine(private val plugin: OyasaiMenu) {
     private fun buildPreview(itemDef: MenuItemDefinition): ItemStack {
         val item = ItemStack(itemDef.icon)
         val meta = item.itemMeta!!
-        meta.displayName(plugin.menuEngine.colorizeComponent(itemDef.name.ifEmpty { "&7(名前なし)" }))
-        if (itemDef.lore.isNotEmpty()) meta.lore(itemDef.lore.map { plugin.menuEngine.colorizeComponent(it) })
+        meta.displayName(comp(itemDef.name.ifEmpty { "&7(名前なし)" }))
+        if (itemDef.lore.isNotEmpty()) meta.lore(itemDef.lore.map { comp(it) })
         item.itemMeta = meta
         return item
     }

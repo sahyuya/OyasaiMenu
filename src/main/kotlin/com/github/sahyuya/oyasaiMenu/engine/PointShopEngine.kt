@@ -8,8 +8,9 @@ import com.github.sahyuya.oyasaiMenu.model.PlayerPointShopState
 import com.github.sahyuya.oyasaiMenu.model.PointShopCategory
 import com.github.sahyuya.oyasaiMenu.model.PointShopItem
 import com.github.sahyuya.oyasaiMenu.util.CustomHead
-import net.kyori.adventure.text.Component
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
+import com.github.sahyuya.oyasaiMenu.util.GuiUtil.c
+import com.github.sahyuya.oyasaiMenu.util.GuiUtil.comp
+import com.github.sahyuya.oyasaiMenu.util.GuiUtil.makeItem
 import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.entity.Player
@@ -46,7 +47,7 @@ class PointShopEngine(private val plugin: OyasaiMenu) : Listener {
 
     private fun buildInventory(player: Player, category: PointShopCategory, state: PlayerPointShopState): Inventory {
         val tokens = TokenCurrencyManager.getTokens(player)
-        val inv = Bukkit.createInventory(null, 54, comp("${cc(category.displayName)} &8| &f${state.page+1}&8/&f${category.pageCount}"))
+        val inv = Bukkit.createInventory(null, 54, comp("${c(category.displayName)} &8| &f${state.page+1}&8/&f${category.pageCount}"))
         category.getPage(state.page).forEachIndexed { i, item ->
             if (!item.icon.isAir) {
                 inv.setItem(i, buildItemStack(player, item, tokens))
@@ -167,11 +168,4 @@ class PointShopEngine(private val plugin: OyasaiMenu) : Listener {
         player.closeInventory()
         Bukkit.getScheduler().runTaskLater(plugin, Runnable { plugin.popupMenuEngine.open(player, "shopindex") }, 1L)
     }
-
-    private fun makeItem(mat: Material, name: String, lore: List<String> = emptyList()): ItemStack {
-        val item = ItemStack(mat); val meta = item.itemMeta ?: return item; meta.displayName(comp(name))
-        if (lore.isNotEmpty()) meta.lore(lore.map { comp(it) }); item.itemMeta = meta; return item
-    }
-    private fun comp(text: String): Component = LegacyComponentSerializer.legacyAmpersand().deserialize(text)
-    private fun cc(text: String) = text.replace('&', '\u00A7'); private fun c(text: String) = cc(text)
 }
