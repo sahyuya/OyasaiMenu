@@ -14,44 +14,40 @@ import org.bukkit.inventory.ItemFlag
 import org.bukkit.inventory.ItemStack
 import org.bukkit.inventory.meta.SkullMeta
 
-/**
- * NavBar
- *
- * 全ポップアップ型メニューの下1列 (スロット45〜53) を共通描画する。
- *
- * ■ ナビゲーションバー (新menu構成.txtの順序)
- *   [45] プレイヤーヘッド  — オンライン/TPS/経験値/残高/ポイント
- *   [46] RED_CONCRETE_POWDER    — チャンネルメニュー
- *   [47] ORANGE_CONCRETE_POWDER — 一括売却 (売却とショップを入替)
- *   [48] YELLOW_CONCRETE_POWDER — サーバーショップ
- *   [49] LIME_CONCRETE_POWDER   — SocialLikes
- *   [50] CYAN_CONCRETE_POWDER   — CarBuilder
- *   [51] BLUE_CONCRETE_POWDER   — ユーティリティ
- *   [52] PURPLE_CONCRETE_POWDER — マクロ
- *   [53] PINK_CONCRETE_POWDER   — リンク集
- */
 object NavBar {
 
-    data class NavEntry(val slot: Int, val material: Material, val name: String, val popupId: String)
-
-    val entries = listOf(
-        NavEntry(46, Material.RED_CONCRETE_POWDER,    "&cチャンネルメニュー", "channel"),
-        NavEntry(47, Material.ORANGE_CONCRETE_POWDER, "&6一括売却",           "sellmenu"),
-        NavEntry(48, Material.YELLOW_CONCRETE_POWDER, "&eサーバーショップ",   "shopindex"),
-        NavEntry(49, Material.LIME_CONCRETE_POWDER,   "&aSocialLikes",        "sociallikes"),
-        NavEntry(50, Material.CYAN_CONCRETE_POWDER,   "&bCarBuilder",         "carbuilder"),
-        NavEntry(51, Material.BLUE_CONCRETE_POWDER,   "&9ユーティリティ",     "utility"),
-        NavEntry(52, Material.PURPLE_CONCRETE_POWDER, "&5マクロ",             "macromenu"),
-        NavEntry(53, Material.PINK_CONCRETE_POWDER,   "&dリンク集",           "links")
+    data class NavEntry(
+        val slot: Int,
+        val material: Material,
+        val name: String,
+        val popupId: String,
+        val lore: List<String> = emptyList()
     )
 
-    /** ポップアップIDからナビスロットを逆引きする */
+    val entries = listOf(
+        NavEntry(46, Material.RED_CONCRETE_POWDER,    "&cチャンネルメニュー", "channel",
+            listOf("&7チャットチャンネルを切り替えます", "&7メンバー確認もここから")),
+        NavEntry(47, Material.ORANGE_CONCRETE_POWDER, "&6一括売却",           "sellmenu",
+            listOf("&7アイテムを一括で売却します", "&7ショップでも買取可のアイテムのみ換金")),
+        NavEntry(48, Material.YELLOW_CONCRETE_POWDER, "&eサーバーショップ",   "shopindex",
+            listOf("&7ブロック・鉱石・ツール等を", "&7購入・売却できます")),
+        NavEntry(49, Material.LIME_CONCRETE_POWDER,   "&aSocialLikes",        "sociallikes",
+            listOf("&7建築を投稿・閲覧したり", "&7空き地へテレポートできます")),
+        NavEntry(50, Material.CYAN_CONCRETE_POWDER,   "&bCarBuilder",         "carbuilder",
+            listOf("&7ユーザー車両建造プラグイン", "&7スポーン、カスタム、車両設定など")),
+        NavEntry(51, Material.BLUE_CONCRETE_POWDER,   "&9ユーティリティ",     "utility",
+            listOf("&7ワープ・各種コマンドの", "&7ショートカット集です")),
+        NavEntry(52, Material.PURPLE_CONCRETE_POWDER, "&5マクロ",             "macromenu",
+            listOf("&7コマンドを登録・実行できる", "&7マクロ機能を管理します")),
+        NavEntry(53, Material.PINK_CONCRETE_POWDER,   "&dリンク集",           "links",
+            listOf("&7Wiki・Discord・WebMAP など", "&7各種リンクを表示します"))
+    )
+
     fun slotForPopup(popupId: String): Int =
         entries.find { it.popupId == popupId }?.slot ?: -1
 
     /**
      * インベントリの下1列 (45〜53) にナビバーを描画する。
-     * スロット 45 はプレイヤーヘッド、46〜53 はナビボタン。
      * @param activeSlot 強調するスロット (46〜53)。-1 = 強調なし
      */
     fun apply(inv: Inventory, player: Player, plugin: OyasaiMenu, activeSlot: Int = -1) {
@@ -65,17 +61,33 @@ object NavBar {
             val item = ItemStack(entry.material)
             val meta = item.itemMeta!!
             meta.displayName(comp(entry.name))
-            if (entry.slot == activeSlot && unbreaking != null) {
-                meta.addEnchant(unbreaking, 1, true)
-                meta.addItemFlags(ItemFlag.HIDE_ENCHANTS)
-                meta.lore(listOf(comp("&a▶ 現在のメニュー")))
+
+            if (entry.slot == activeSlot) {
+                // アクティブ: エンチャントグロー + 「現在のメニュー」をlore先頭に追加
+                if (unbreaking != null) {
+                    meta.addEnchant(unbreaking, 1, true)
+                    meta.addItemFlags(ItemFlag.HIDE_ENCHANTS)
+                }
+                val activeLore = buildList {
+                    add(comp("&a▶ 現在のメニュー"))
+                    if (entry.lore.isNotEmpty()) {
+                        add(comp(""))
+                        entry.lore.forEach { add(comp(it)) }
+                    }
+                }
+                meta.lore(activeLore)
+            } else {
+                if (entry.lore.isNotEmpty()) {
+                    meta.lore(entry.lore.map { comp(it) })
+                }
             }
+
             item.itemMeta = meta
             inv.setItem(entry.slot, item)
         }
     }
 
-    /** スロット45用のプレイヤーヘッド: オンライン/TPS/経験値/残高/ポイントを表示 */
+    /** スロット45用プレイヤーヘッド */
     fun buildPlayerHead(player: Player, plugin: OyasaiMenu): ItemStack {
         val skull = ItemStack(Material.PLAYER_HEAD)
         val meta  = skull.itemMeta as SkullMeta

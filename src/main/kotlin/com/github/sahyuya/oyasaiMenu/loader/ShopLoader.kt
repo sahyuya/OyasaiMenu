@@ -14,13 +14,13 @@ import java.io.File
  * ShopLoader
  *
  * 追加:
- *   - addItem(categoryId, materialLine, buy, sell): shops.yml に1行追記して null でなければ成功
- *   - removeItem(categoryId, index): 指定 index の行を削除してマテリアル名を返す
+ *   - addItem(categoryId, materialLine, buy, sell): shops.yml に1行追記
+ *   - removeItem(categoryId, index): 指定 index の行を削除
  */
 class ShopLoader(private val plugin: OyasaiMenu) {
 
-    private val categories: MutableMap<String, ShopCategory> = mutableMapOf()
-    private val sellPriceMap: MutableMap<Material, Double> = mutableMapOf()
+    private val categories:   MutableMap<String, ShopCategory> = mutableMapOf()
+    private val sellPriceMap: MutableMap<Material, Double>     = mutableMapOf()
 
     private data class CustomItemDef(
         val material: Material,
@@ -74,12 +74,12 @@ class ShopLoader(private val plugin: OyasaiMenu) {
         sellPriceMap.clear()
         loadCustomItems()
 
-        val file = shopsFile()
-        val yaml = YamlConfiguration.loadConfiguration(file)
+        val file   = shopsFile()
+        val yaml   = YamlConfiguration.loadConfiguration(file)
         var loaded = 0; var skipped = 0
 
         yaml.getKeys(false).forEach { catId ->
-            val sec = yaml.getConfigurationSection(catId) ?: return@forEach
+            val sec   = yaml.getConfigurationSection(catId) ?: return@forEach
             val items = mutableListOf<ShopItem>()
 
             sec.getStringList("items").forEach { line ->
@@ -87,31 +87,27 @@ class ShopLoader(private val plugin: OyasaiMenu) {
                 when {
                     t.isEmpty() || t.startsWith("#") -> { skipped++; return@forEach }
                     t.startsWith("\$") -> {
-                        val item = parseCustomItemLine(t, catId)
-                        if (item != null) {
-                            items.add(item)
-                            if (item.canSell && item.material != null)
-                                sellPriceMap[item.material] = item.sellPrice
+                        parseCustomItemLine(t, catId)?.also {
+                            items.add(it)
+                            if (it.canSell && it.material != null) sellPriceMap[it.material] = it.sellPrice
                             loaded++
-                        } else skipped++
+                        } ?: run { skipped++ }
                     }
                     else -> {
-                        val item = parseItemLine(t, catId)
-                        if (item != null) {
-                            items.add(item)
-                            if (item.canSell && item.material != null)
-                                sellPriceMap[item.material] = item.sellPrice
+                        parseItemLine(t, catId)?.also {
+                            items.add(it)
+                            if (it.canSell && it.material != null) sellPriceMap[it.material] = it.sellPrice
                             loaded++
-                        } else skipped++
+                        } ?: run { skipped++ }
                     }
                 }
             }
 
             categories[catId] = ShopCategory(
-                id = catId,
+                id          = catId,
                 displayName = sec.getString("name", "&7$catId") ?: "&7$catId",
-                command = sec.getString("command"),
-                items = items
+                command     = sec.getString("command"),
+                items       = items
             )
         }
         plugin.logger.info("ショップ: ${categories.size} カテゴリ / $loaded アイテム ($skipped スキップ)")
@@ -135,35 +131,34 @@ class ShopLoader(private val plugin: OyasaiMenu) {
         val yaml = YamlConfiguration.loadConfiguration(file)
         if (!yaml.contains(categoryId)) return null
 
-        val currentList = yaml.getStringList("$categoryId.items").toMutableList()
-        currentList.add("$materialLine $buyPrice $sellPrice")
-        yaml.set("$categoryId.items", currentList)
+        val current = yaml.getStringList("$categoryId.items").toMutableList()
+        current.add("$materialLine $buyPrice $sellPrice")
+        yaml.set("$categoryId.items", current)
 
         runCatching { yaml.save(file) }
-            .onFailure { e -> plugin.logger.warning("shops.yml 保存失敗: ${e.message}") }
+            .onFailure { plugin.logger.warning("shops.yml 保存失敗: ${it.message}") }
         return file
     }
 
     /**
-     * 指定カテゴリの items リストから index 番目 (0-indexed、空行除く) の行を削除する。
-     * @return 削除したアイテム文字列 (materialId など)。失敗なら null。
+     * 指定カテゴリの items リストから index 番目 (0-indexed, 空行除く) の行を削除する。
+     * @return 削除したアイテム文字列の先頭トークン (materialId など)。失敗なら null。
      */
     fun removeItem(categoryId: String, index: Int): String? {
         val file = shopsFile()
         val yaml = YamlConfiguration.loadConfiguration(file)
         if (!yaml.contains(categoryId)) return null
 
-        // 空行・コメントを除いた実アイテム行のみ対象
-        val rawList = yaml.getStringList("$categoryId.items").toMutableList()
+        val rawList     = yaml.getStringList("$categoryId.items").toMutableList()
         val realIndices = rawList.indices.filter { rawList[it].trim().isNotEmpty() && !rawList[it].trim().startsWith("#") }
-        val realIndex = realIndices.getOrNull(index) ?: return null
+        val realIndex   = realIndices.getOrNull(index) ?: return null
 
         val removed = rawList[realIndex]
         rawList.removeAt(realIndex)
         yaml.set("$categoryId.items", rawList)
 
         runCatching { yaml.save(file) }
-            .onFailure { e -> plugin.logger.warning("shops.yml 保存失敗: ${e.message}") }
+            .onFailure { plugin.logger.warning("shops.yml 保存失敗: ${it.message}") }
         return removed.trim().split("\\s+".toRegex()).firstOrNull()
     }
 
@@ -192,18 +187,16 @@ class ShopLoader(private val plugin: OyasaiMenu) {
                 plugin.logger.info("items/custom_items.yml を初期配置しました。")
             }
         }
-
         val yaml = YamlConfiguration.loadConfiguration(file)
         yaml.getKeys(false).forEach { key ->
-            val sec = yaml.getConfigurationSection(key) ?: return@forEach
+            val sec     = yaml.getConfigurationSection(key) ?: return@forEach
             val matName = (sec.getString("id") ?: sec.getString("material") ?: "STONE").uppercase()
-            val mat = runCatching { Material.valueOf(matName) }.getOrElse {
-                plugin.logger.warning("custom_items.yml: 不明なマテリアル '$matName' (key: $key)")
-                Material.STONE
+            val mat     = runCatching { Material.valueOf(matName) }.getOrElse {
+                plugin.logger.warning("custom_items.yml: 不明なマテリアル '$matName' (key: $key)"); Material.STONE
             }
             val enchantMap = mutableMapOf<Enchantment, Int>()
             sec.getConfigurationSection("enchantments")?.getKeys(false)?.forEach { enchKey ->
-                val level = sec.getInt("enchantments.$enchKey", 1)
+                val level   = sec.getInt("enchantments.$enchKey", 1)
                 val enchant = resolveEnchantment(enchKey)
                 if (enchant != null) enchantMap[enchant] = level
                 else plugin.logger.warning("custom_items.yml: 不明なエンチャント '$enchKey' (key: $key)")
@@ -220,9 +213,7 @@ class ShopLoader(private val plugin: OyasaiMenu) {
 
     private fun resolveEnchantment(name: String): Enchantment? {
         val key = legacyEnchantNames[name.uppercase()] ?: name.lowercase()
-        return runCatching {
-            Registry.ENCHANTMENT.get(NamespacedKey.minecraft(key))
-        }.getOrElse {
+        return runCatching { Registry.ENCHANTMENT.get(NamespacedKey.minecraft(key)) }.getOrElse {
             @Suppress("DEPRECATION")
             Enchantment.getByName(name.uppercase())
         }
@@ -234,42 +225,25 @@ class ShopLoader(private val plugin: OyasaiMenu) {
 
     private fun parseCustomItemLine(line: String, catId: String): ShopItem? {
         val parts = line.split("\\s+".toRegex())
-        if (parts.size < 3) {
-            plugin.logger.warning("カスタムアイテム フォーマットエラー ($catId): '$line'"); return null
-        }
+        if (parts.size < 3) { plugin.logger.warning("カスタムアイテム フォーマットエラー ($catId): '$line'"); return null }
         val key       = parts[0].removePrefix("\$")
         val buyPrice  = parts[1].toDoubleOrNull() ?: return null
         val sellPrice = parts[2].toDoubleOrNull() ?: return null
         val def = customItems[key] ?: run {
-            plugin.logger.warning("カスタムアイテム未定義: $key ($catId) — items/custom_items.yml に追加してください")
-            return null
+            plugin.logger.warning("カスタムアイテム未定義: $key ($catId) — items/custom_items.yml に追加してください"); return null
         }
-        return ShopItem(
-            material     = def.material,
-            materialId   = key,
-            buyPrice     = buyPrice,
-            sellPrice    = sellPrice,
-            customName   = def.name.takeIf { it.isNotEmpty() },
-            customLore   = def.lore,
-            enchantments = def.enchantments
-        )
+        return ShopItem(material = def.material, materialId = key, buyPrice = buyPrice, sellPrice = sellPrice,
+            customName = def.name.takeIf { it.isNotEmpty() }, customLore = def.lore, enchantments = def.enchantments)
     }
 
     private fun parseItemLine(line: String, catId: String): ShopItem? {
         val parts = line.split("\\s+".toRegex())
-        if (parts.size < 3) {
-            plugin.logger.warning("フォーマットエラー ($catId): '$line'"); return null
-        }
+        if (parts.size < 3) { plugin.logger.warning("フォーマットエラー ($catId): '$line'"); return null }
         val buyPrice  = parts[1].toDoubleOrNull() ?: return null
         val sellPrice = parts[2].toDoubleOrNull() ?: return null
         val material  = runCatching { Material.valueOf(parts[0].uppercase()) }.getOrElse {
             plugin.logger.warning("不明なマテリアル: ${parts[0]} ($catId)"); null
         }
-        return ShopItem(
-            material   = material,
-            materialId = parts[0].lowercase(),
-            buyPrice   = buyPrice,
-            sellPrice  = sellPrice
-        )
+        return ShopItem(material = material, materialId = parts[0].lowercase(), buyPrice = buyPrice, sellPrice = sellPrice)
     }
 }

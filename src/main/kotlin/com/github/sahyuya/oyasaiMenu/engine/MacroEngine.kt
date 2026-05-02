@@ -4,6 +4,7 @@ import com.github.sahyuya.oyasaiMenu.OyasaiMenu
 import com.github.sahyuya.oyasaiMenu.model.PlayerMacro
 import com.github.sahyuya.oyasaiMenu.util.GuiUtil.c
 import com.github.sahyuya.oyasaiMenu.util.GuiUtil.comp
+import com.github.sahyuya.oyasaiMenu.util.GuiUtil.makeItem
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
 import org.bukkit.Bukkit
@@ -356,12 +357,5 @@ class MacroEngine(private val plugin: OyasaiMenu) : Listener {
             remaining = remaining.substring(cutAt).trimStart('\n')
         }
         return pages
-    }
-
-    private fun makeItem(mat: Material, name: String, lore: List<String> = emptyList()): ItemStack {
-        val item = ItemStack(mat); val meta = item.itemMeta ?: return item
-        meta.displayName(comp(name))
-        if (lore.isNotEmpty()) meta.lore(lore.map { comp(it) })
-        item.itemMeta = meta; return item
     }
 }

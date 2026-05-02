@@ -2,11 +2,6 @@ package com.github.sahyuya.oyasaiMenu.model
 
 import org.bukkit.Material
 
-// ============================================================
-// ポイントショップ定義モデル
-// menus/shop/pointshop.yml の形式に対応
-// ============================================================
-
 data class PointShopCategory(
     val id: String,
     val displayName: String,
@@ -25,12 +20,6 @@ data class PointShopCategory(
     }
 }
 
-/**
- * ポイントショップの1商品。
- *
- * @param customTexture icon=CUSTOM_HEAD のとき使用するテクスチャハッシュ (64文字16進)
- *                      null の場合は通常の Material として扱う
- */
 data class PointShopItem(
     val key: String,
     val icon: Material,
@@ -40,7 +29,7 @@ data class PointShopItem(
     val message: String,
     val commands: List<String>,
     val closeOnPurchase: Boolean = false,
-    val customTexture: String? = null          // ★ カスタムヘッド対応
+    val customTexture: String? = null
 )
 
 data class PlayerPointShopState(

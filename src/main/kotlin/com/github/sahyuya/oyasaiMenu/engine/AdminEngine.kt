@@ -25,7 +25,7 @@ class AdminEngine(private val plugin: OyasaiMenu) : Listener {
     }
 
     private fun buildInventory(): Inventory {
-        val inv = Bukkit.createInventory(null, 54, comp("&4⚙ 管理者メニュー"))
+        val inv = Bukkit.createInventory(null, 54, comp("&b⚙ 管理者メニュー"))
         inv.setItem(10, makeItem(Material.EMERALD, "&aリロード",
             listOf("&7全 YAML を再読み込みします", "", "&eクリックで実行")))
         inv.setItem(12, makeItem(Material.WRITABLE_BOOK, "&bアナウンス編集",
@@ -46,13 +46,13 @@ class AdminEngine(private val plugin: OyasaiMenu) : Listener {
                 "&7手持ちアイテムのデータコンポーネントで登録",
                 "",
                 "&f/menuedit whitelist list",
-                "&f/menuedit whitelist add hand|h &7<売値>",
+                "&f/menuedit whitelist add hand/h &7<売値>",
                 "&f/menuedit whitelist remove &7<番号>",
                 "",
                 "&eクリックでコマンドガイドを表示"
             )))
         inv.setItem(34, makeItem(Material.OAK_DOOR, "&7閉じる", listOf("&7管理者メニューを閉じます")))
-        val glass = makeItem(Material.BLACK_STAINED_GLASS_PANE, " ")
+        val glass = makeItem(Material.LIGHT_BLUE_STAINED_GLASS_PANE, " ")
         for (i in 0..53) { if (inv.getItem(i) == null) inv.setItem(i, glass) }
         return inv
     }
@@ -79,7 +79,7 @@ class AdminEngine(private val plugin: OyasaiMenu) : Listener {
                 player.closeInventory()
                 player.sendMessage(c("&b--- 売却ホワイトリスト管理 ---"))
                 player.sendMessage(c("&f/menuedit whitelist list"))
-                player.sendMessage(c("&f/menuedit whitelist add hand|h &7<売値>"))
+                player.sendMessage(c("&f/menuedit whitelist add hand/h &7<売値>"))
                 player.sendMessage(c("&f/menuedit whitelist remove &7<番号>"))
                 player.sendMessage(c("&7現在 &f${plugin.sellWhitelistManager.getEntries().size}&7 件登録済み"))
             }

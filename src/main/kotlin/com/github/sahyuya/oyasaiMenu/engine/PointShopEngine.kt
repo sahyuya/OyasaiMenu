@@ -58,7 +58,6 @@ class PointShopEngine(private val plugin: OyasaiMenu) : Listener {
     }
 
     private fun buildItemStack(player: Player, item: PointShopItem, tokens: Long): ItemStack {
-        // カスタムヘッド対応
         val stack: ItemStack = when {
             item.customTexture != null -> CustomHead.get(item.customTexture)
             else -> ItemStack(item.icon)
@@ -88,7 +87,8 @@ class PointShopEngine(private val plugin: OyasaiMenu) : Listener {
         val hasNext = state.page < category.pageCount - 1
         inv.setItem(50, makeItem(if (hasNext) Material.ARROW else Material.GRAY_STAINED_GLASS_PANE, if (hasNext) "&e次のページ →" else "&8次のページなし"))
         val balStr = if (EconomyManager.isAvailable) EconomyManager.format(EconomyManager.getBalance(player)) else "---"
-        inv.setItem(53, makeItem(Material.NETHER_STAR, "&6ポイント: &f${TokenCurrencyManager.format(tokens)}P", listOf("&7所持ポイント: &f${TokenCurrencyManager.format(tokens)}P","&7所持金: &f$balStr","","&eクリックで残高を更新")))
+        inv.setItem(53, makeItem(Material.NETHER_STAR, "&6ポイント: &f${TokenCurrencyManager.format(tokens)}P",
+            listOf("&7所持ポイント: &f${TokenCurrencyManager.format(tokens)}P","&7所持金: &f$balStr","","&eクリックで残高を更新")))
     }
 
     @EventHandler

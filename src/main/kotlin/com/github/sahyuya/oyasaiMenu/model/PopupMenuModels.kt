@@ -78,6 +78,7 @@ enum class PopupActionType {
     CONSOLE_CMD,    // コンソールコマンド実行 (value, %player% 置換)
     URL,            // URLをチャットに表示 (value = URL)
     CHAT_PASTE,     // テキストをチャットに表示 (value = テキスト)
+    SUGGEST_COMMAND,// チャット欄にコマンドをサジェスト (クリックで入力)
     OPEN_POPUP,     // 別ポップアップを開く (value = popup ID)
     OPEN_SHOP,      // ショップカテゴリを開く (value = category ID, 空ならshop/index)
     OPEN_SELL,        // SellEngine を開く

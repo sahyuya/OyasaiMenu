@@ -33,7 +33,6 @@ class MenuEngine(private val plugin: OyasaiMenu) : Listener {
     private val playerStates: MutableMap<String, PlayerMenuState> = mutableMapOf()
     private val staticCache:  MutableMap<String, Inventory>       = mutableMapOf()
 
-    /** root メニューのフォールバック定義 (root.yml がなくても動作させるため) */
     private val rootFallback = MenuDefinition(
         id    = "root",
         title = "&8✦ おやさい鯖 メニュー ✦",
@@ -54,16 +53,6 @@ class MenuEngine(private val plugin: OyasaiMenu) : Listener {
         playerStates[player.uniqueId.toString()] = PlayerMenuState(menuId = menuId, page = page, isEditing = false)
     }
 
-    fun openMenuInEditMode(player: Player, menuId: String) {
-        val menuDef = plugin.menuLoader.getMenu(menuId)
-            ?: run { player.sendMessage(c("&cメニューが見つかりません: $menuId")); return }
-        val inv = Bukkit.createInventory(null, 54, comp("&c[編集] ${menuDef.title}"))
-        menuDef.items.values.forEach { if (it.slot < 45) inv.setItem(it.slot, buildItemStack(player, it)) }
-        setupEditToolbar(inv)
-        player.openInventory(inv)
-        playerStates[player.uniqueId.toString()] = PlayerMenuState(menuId = menuId, page = 0, isEditing = true)
-    }
-
     @EventHandler
     fun onInventoryClick(event: InventoryClickEvent) {
         val player = event.whoClicked as? Player ?: return
@@ -82,7 +71,7 @@ class MenuEngine(private val plugin: OyasaiMenu) : Listener {
         }
         val menuDef = plugin.menuLoader.getMenu(state.menuId) ?: return
         val itemDef = menuDef.items.values.find { it.slot == slot } ?: return
-        if (itemDef.icon.isAir) return   // AIR スロットはクリック無視
+        if (itemDef.icon.isAir) return
         plugin.actionEngine.executeActions(player, itemDef.actions, state)
     }
 
@@ -95,7 +84,7 @@ class MenuEngine(private val plugin: OyasaiMenu) : Listener {
         val title = applyPlaceholders(player, menuDef.title)
         val inv   = Bukkit.createInventory(null, menuDef.size, comp(title))
         menuDef.items.values.forEach { itemDef ->
-            if (itemDef.icon.isAir) return@forEach                                          // AIR = 空スロット
+            if (itemDef.icon.isAir) return@forEach
             if (itemDef.permission != null && !player.hasPermission(itemDef.permission)) return@forEach
             if (itemDef.slot < menuDef.size) inv.setItem(itemDef.slot, buildItemStack(player, itemDef))
         }
@@ -119,11 +108,6 @@ class MenuEngine(private val plugin: OyasaiMenu) : Listener {
         item.itemMeta = meta; return item
     }
 
-    /**
-     * MenuItemDefinition から ItemStack を生成する。
-     * - icon: PLAYER_HEAD + customTexture → CustomHead.get()
-     * - icon: AIR → null (呼び出し元でスキップすること)
-     */
     private fun buildItemStack(player: Player, itemDef: MenuItemDefinition): ItemStack {
         val item: ItemStack = when {
             itemDef.customTexture != null -> CustomHead.get(itemDef.customTexture)
@@ -136,15 +120,6 @@ class MenuEngine(private val plugin: OyasaiMenu) : Listener {
         item.itemMeta = meta; return item
     }
 
-    private fun setupEditToolbar(inv: Inventory) {
-        data class T(val slot: Int, val mat: Material, val name: String)
-        listOf(T(45,Material.ARROW,"&c← 戻る"),T(46,Material.EMERALD,"&a保存"),T(47,Material.BARRIER,"&eキャンセル"),
-            T(48,Material.ENDER_EYE,"&bテスト表示"),T(49,Material.BOOK,"&dページ設定"),T(50,Material.NETHER_STAR,"&6新規アイテム追加"),
-            T(51,Material.PAPER,"&fコピー"),T(52,Material.TNT,"&4削除モード"),T(53,Material.COMPARATOR,"&7設定")).forEach { t ->
-            val item = ItemStack(t.mat); val meta = item.itemMeta!!; meta.displayName(comp(t.name)); item.itemMeta = meta; inv.setItem(t.slot, item)
-        }
-    }
-
     private fun handleEditClick(player: Player, state: PlayerMenuState, slot: Int, event: InventoryClickEvent) {
         when (slot) {
             45 -> { player.closeInventory(); val parentId = state.menuId.substringBeforeLast("/","root"); if (parentId != state.menuId) openMenu(player, parentId) }
@@ -153,7 +128,10 @@ class MenuEngine(private val plugin: OyasaiMenu) : Listener {
             48 -> openMenu(player, state.menuId)
             50 -> player.sendMessage(c("&6空スロットをクリックしてアイテムを追加。(実装予定)"))
             52 -> player.sendMessage(c("&4削除モード切替。(実装予定)"))
-            in 0..44 -> { if (event.isRightClick) plugin.actionEngine.openItemEditor(player, state.menuId, slot) else player.sendMessage(c("&7スロット $slot を選択。右クリックで詳細編集。")) }
+            in 0..44 -> {
+                if (event.isRightClick) plugin.actionEngine.openItemEditor(player, state.menuId, slot)
+                else player.sendMessage(c("&7スロット $slot を選択。右クリックで詳細編集。"))
+            }
         }
     }
 

@@ -6,6 +6,11 @@ import com.github.sahyuya.oyasaiMenu.model.*
 import com.github.sahyuya.oyasaiMenu.util.CustomHead
 import com.github.sahyuya.oyasaiMenu.util.GuiUtil.c
 import com.github.sahyuya.oyasaiMenu.util.GuiUtil.comp
+import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.event.ClickEvent
+import net.kyori.adventure.text.event.HoverEvent
+import net.kyori.adventure.text.format.NamedTextColor
+import net.kyori.adventure.text.format.TextDecoration
 import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.NamespacedKey
@@ -22,9 +27,10 @@ import org.bukkit.inventory.ItemStack
 /**
  * PopupMenuEngine
  *
- * 修正: close→コマンド順序バグ / コマンドクールダウン誤適用
- *   旧: コマンド即実行 → 1tick後 close → コマンドで開いたGUIが閉じられた
- *   新: URL/CHAT_PASTEのみ即時 → 1tick後 close → 2tick後 コマンド+GUI遷移
+ * 変更点:
+ *   - SUGGEST_COMMAND: ClickEvent.suggestCommand() でチャット欄にコマンドを入力
+ *   - AIR スロット: fillGlass で上書きしないよう、fillGlass 後に明示的にクリア
+ *   - italic: comp() に TextDecoration.ITALIC=false を追加
  */
 class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
 
@@ -40,15 +46,24 @@ class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
             plugin.logger.warning("Popup '$popupId' が見つかりません。menus/popup/$popupId.yml を確認してください。")
             player.sendMessage(c("&c内部エラー: popup '$popupId' が見つかりません。")); return
         }
-        val inv = buildInventory(player, def)
-        player.openInventory(inv)
+        player.openInventory(buildInventory(player, def))
         activePlayers[uid] = popupId
     }
 
     private fun buildInventory(player: Player, def: PopupMenuDef): Inventory {
         val inv = Bukkit.createInventory(null, 54, comp(def.title))
-        def.items.forEach { item -> if (item.slot in 0..44) inv.setItem(item.slot, buildItemStack(item)) }
+
+        def.items.forEach { item ->
+            if (item.slot in 0..44 && !item.icon.isAir) {
+                inv.setItem(item.slot, buildItemStack(item))
+            }
+        }
+
         NavBar.fillGlass(inv, def.glass)
+        def.items.filter { it.icon.isAir && it.slot in 0..44 }.forEach {
+            inv.setItem(it.slot, null)
+        }
+
         NavBar.apply(inv, player, plugin, def.navActive)
         return inv
     }
@@ -88,6 +103,7 @@ class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
             slot in 0..44 -> {
                 val def  = plugin.popupMenuLoader.getPopup(popupId) ?: return
                 val item = def.items.find { it.slot == slot } ?: return
+                if (item.icon.isAir) return   // AIR スロットはクリック無視
                 executeActions(player, item.actions)
             }
         }
@@ -99,18 +115,31 @@ class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
     }
 
     private fun executeActions(player: Player, actions: List<PopupAction>) {
-        // 即時: メッセージ系のみ
+        // 即時処理 (GUIを閉じる前に送れるもの)
         for (action in actions) {
             when (action.type) {
-                PopupActionType.URL -> player.sendMessage(c("&e${action.value}\n&7URLをクリックまたはコピーしてアクセスしてください。"))
-                PopupActionType.CHAT_PASTE -> player.sendMessage(c("&7チャット欄にコピーして使用してください: &f${action.value}"))
+                PopupActionType.URL ->
+                    player.sendMessage(c("&e${action.value}\n&7URLをクリックまたはコピーしてアクセスしてください。"))
+                PopupActionType.CHAT_PASTE ->
+                    player.sendMessage(c("&7チャット欄にコピーして使用してください: &f${action.value}"))
                 else -> {}
             }
         }
+
+        // GUI を閉じてから実行が必要なアクション種別
         val needsCloseFirst = actions.any {
-            it.type in setOf(PopupActionType.CLOSE, PopupActionType.OPEN_POPUP, PopupActionType.OPEN_SHOP,
-                PopupActionType.OPEN_SELL, PopupActionType.OPEN_MACRO, PopupActionType.OPEN_POINT_SHOP, PopupActionType.OPEN_MENU)
+            it.type in setOf(
+                PopupActionType.CLOSE,
+                PopupActionType.OPEN_POPUP,
+                PopupActionType.OPEN_SHOP,
+                PopupActionType.OPEN_SELL,
+                PopupActionType.OPEN_MACRO,
+                PopupActionType.OPEN_POINT_SHOP,
+                PopupActionType.OPEN_MENU,
+                PopupActionType.SUGGEST_COMMAND
+            )
         }
+
         if (needsCloseFirst) {
             Bukkit.getScheduler().runTaskLater(plugin, Runnable {
                 player.closeInventory()
@@ -126,15 +155,38 @@ class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
             when (action.type) {
                 PopupActionType.PLAYER_CMD  -> player.performCommand(action.value.replace("%player%", player.name))
                 PopupActionType.CONSOLE_CMD -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), action.value.replace("%player%", player.name))
+                PopupActionType.SUGGEST_COMMAND -> {
+                    val cmd = action.value.replace("%player%", player.name)
+                    val msg = Component.text()
+                        .decoration(TextDecoration.ITALIC, false)
+                        .append(Component.text("▶ ").color(NamedTextColor.GREEN))
+                        .append(
+                            Component.text(cmd)
+                                .color(NamedTextColor.YELLOW)
+                                .clickEvent(ClickEvent.suggestCommand(cmd))
+                                .hoverEvent(HoverEvent.showText(
+                                    Component.text("クリックでチャット欄に入力").color(NamedTextColor.GRAY)
+                                        .decoration(TextDecoration.ITALIC, false)
+                                ))
+                        )
+                        .build()
+                    player.sendMessage(msg)
+                }
                 PopupActionType.OPEN_POPUP  -> open(player, action.value)
-                PopupActionType.OPEN_SHOP   -> { val cat = action.value; if (cat.isEmpty()) open(player, "shopindex") else plugin.shopEngine.openShop(player, cat) }
-                PopupActionType.OPEN_SELL   -> plugin.sellEngine.openSellMenu(player)
-                PopupActionType.OPEN_MACRO  -> plugin.macroEngine.openMacroList(player)
-                PopupActionType.OPEN_POINT_SHOP -> {
-                    val catId = if (action.value.isEmpty() || action.value == "true") plugin.pointShopLoader.getAllCategories().keys.firstOrNull() ?: return else action.value
+                PopupActionType.OPEN_SHOP   -> {
+                    val cat = action.value
+                    if (cat.isEmpty()) open(player, "shopindex")
+                    else plugin.shopEngine.openShop(player, cat)
+                }
+                PopupActionType.OPEN_SELL        -> plugin.sellEngine.openSellMenu(player)
+                PopupActionType.OPEN_MACRO       -> plugin.macroEngine.openMacroList(player)
+                PopupActionType.OPEN_POINT_SHOP  -> {
+                    val catId = if (action.value.isEmpty() || action.value == "true")
+                        plugin.pointShopLoader.getAllCategories().keys.firstOrNull() ?: return
+                    else action.value
                     plugin.pointShopEngine.openShop(player, catId)
                 }
-                PopupActionType.OPEN_MENU   -> plugin.menuEngine.openMenu(player, action.value)
+                PopupActionType.OPEN_MENU -> plugin.menuEngine.openMenu(player, action.value)
                 else -> {}
             }
         }

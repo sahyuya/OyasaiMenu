@@ -10,19 +10,14 @@ import java.io.File
 /**
  * MenuLoader
  *
- * plugins/OyasaiMenu/menus/ を再帰スキャンし、
- * 全 .yml を MenuDefinition としてロードする。
- *
- * カスタムヘッド指定:
- *   icon: CUSTOM_HEAD
- *   texture: "<64文字テクスチャハッシュ>"
- *
- * 空スロット指定:
- *   icon: AIR
+ * 変更点:
+ *   - icon: CUSTOM_HEAD → Material.PLAYER_HEAD + customTexture 保持
+ *   - icon: AIR → Material.AIR として保持 (MenuEngine 側でスキップ)
+ *   - root.yml は不要 (MenuEngine にフォールバック定義あり)
  */
 class MenuLoader(private val plugin: OyasaiMenu) {
 
-    private val menus: MutableMap<String, MenuDefinition> = mutableMapOf()
+    private val menus:     MutableMap<String, MenuDefinition>     = mutableMapOf()
     private val templates: MutableMap<String, MenuItemDefinition> = mutableMapOf()
 
     fun loadAll() {
@@ -52,23 +47,20 @@ class MenuLoader(private val plugin: OyasaiMenu) {
                 scanDirectory(file, "$prefix${file.name}/", skipFiles)
             } else if (file.extension == "yml" && file.name !in skipFiles) {
                 val menuId = "$prefix${file.nameWithoutExtension}"
-                runCatching {
-                    menus[menuId] = loadMenuFile(file, menuId)
-                }.onFailure {
-                    plugin.logger.warning("メニューロード失敗: $menuId → ${it.message}")
-                }
+                runCatching { menus[menuId] = loadMenuFile(file, menuId) }
+                    .onFailure { plugin.logger.warning("メニューロード失敗: $menuId → ${it.message}") }
             }
         }
     }
 
     private fun loadMenuFile(file: File, menuId: String): MenuDefinition {
-        val yaml = YamlConfiguration.loadConfiguration(file)
+        val yaml    = YamlConfiguration.loadConfiguration(file)
         val menuSec = yaml.getConfigurationSection("menu")
             ?: throw IllegalArgumentException("'menu:' セクションがありません: ${file.name}")
 
-        val title = menuSec.getString("title", "&8メニュー")!!
+        val title   = menuSec.getString("title", "&8メニュー")!!
         val rawSize = menuSec.getInt("size", 54).coerceIn(9, 54)
-        val size = ((rawSize + 8) / 9) * 9
+        val size    = ((rawSize + 8) / 9) * 9
 
         val items = buildMap<String, MenuItemDefinition> {
             yaml.getConfigurationSection("items")?.getKeys(false)?.forEach { key ->
@@ -87,7 +79,7 @@ class MenuLoader(private val plugin: OyasaiMenu) {
             }
         } ?: MenuItemDefinition(slot = 0)
 
-        val slot = section.getInt("slot", base.slot)
+        val slot     = section.getInt("slot", base.slot)
         val iconName = section.getString("icon", base.icon.name)?.uppercase() ?: base.icon.name
         val customTexture: String? = section.getString("texture") ?: base.customTexture
 
@@ -97,10 +89,10 @@ class MenuLoader(private val plugin: OyasaiMenu) {
             else -> runCatching { Material.valueOf(iconName) }.getOrElse { Material.STONE }
         }
 
-        val name = section.getString("name", base.name) ?: base.name
-        val lore = section.getStringList("lore").ifEmpty { base.lore }
+        val name       = section.getString("name", base.name) ?: base.name
+        val lore       = section.getStringList("lore").ifEmpty { base.lore }
         val permission = section.getString("permission", base.permission)
-        val actions = if (section.contains("actions")) parseActions(section, "actions") else base.actions
+        val actions    = if (section.contains("actions")) parseActions(section, "actions") else base.actions
 
         return MenuItemDefinition(
             slot          = slot,

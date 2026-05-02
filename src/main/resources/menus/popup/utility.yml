@@ -299,7 +299,7 @@ items:
     icon: PURPLE_GLAZED_TERRACOTTA
     name: "&d案内モード"
     lore:
-      - "&7/annnai <player> をチャット欄に入力"
+      - "&7/annnaimode <player> をチャット欄に入力"
       - "&7クリック後、プレイヤー名を入力・Enterして下さい"
     actions:
-      - {suggest_command: "/annnai "}
+      - {suggest_command: "/annnaimode "}

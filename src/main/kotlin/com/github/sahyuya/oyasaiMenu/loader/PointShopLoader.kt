@@ -33,22 +33,20 @@ class PointShopLoader(private val plugin: OyasaiMenu) {
             }
         }
 
-        val yaml = YamlConfiguration.loadConfiguration(file)
+        val yaml   = YamlConfiguration.loadConfiguration(file)
         var loaded = 0
 
         yaml.getKeys(false).forEach { catId ->
-            val catSec = yaml.getConfigurationSection(catId) ?: return@forEach
+            val catSec      = yaml.getConfigurationSection(catId) ?: return@forEach
             val displayName = catSec.getString("name", "&7$catId") ?: "&7$catId"
-            val itemsSec = catSec.getConfigurationSection("items") ?: return@forEach
-            val items = mutableMapOf<String, PointShopItem>()
+            val itemsSec    = catSec.getConfigurationSection("items") ?: return@forEach
+            val items       = mutableMapOf<String, PointShopItem>()
 
             itemsSec.getKeys(false).forEach { key ->
-                val sec = itemsSec.getConfigurationSection(key) ?: return@forEach
-
+                val sec      = itemsSec.getConfigurationSection(key) ?: return@forEach
                 val iconName = sec.getString("icon", "CHEST")?.uppercase() ?: "CHEST"
                 val customTexture: String? = sec.getString("texture")
 
-                // CUSTOM_HEAD は PLAYER_HEAD として扱い texture を保持する
                 val icon: Material = when {
                     iconName == "CUSTOM_HEAD" -> Material.PLAYER_HEAD
                     iconName == "AIR"         -> Material.AIR
@@ -65,7 +63,7 @@ class PointShopLoader(private val plugin: OyasaiMenu) {
                     name            = sec.getString("name", "") ?: "",
                     lore            = sec.getStringList("lore"),
                     cost            = cost,
-                    message         = sec.getString("message", "&a&3${cost}&fP&7使用しました") ?: "",
+                    message         = sec.getString("message", "&a${cost}P 使用しました") ?: "",
                     commands        = sec.getStringList("commands"),
                     closeOnPurchase = sec.getBoolean("close-on-purchase", false),
                     customTexture   = customTexture
@@ -74,9 +72,7 @@ class PointShopLoader(private val plugin: OyasaiMenu) {
             }
 
             if (items.isNotEmpty()) {
-                categories[catId] = PointShopCategory(
-                    id = catId, displayName = displayName, items = items
-                )
+                categories[catId] = PointShopCategory(id = catId, displayName = displayName, items = items)
             }
         }
         plugin.logger.info("ポイントショップ: ${categories.size} カテゴリ / $loaded アイテム")

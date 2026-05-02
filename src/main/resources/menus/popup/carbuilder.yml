@@ -1,6 +1,6 @@
 # CarBuilder メニュー
 # 画像6参照: 青緑ガラス、col7 row4 (slot43) にエンチャントかまど付きトロッコ
-title: "&bCarBuilder"
+title: "&bCarBuilder & AircraftBuilder"
 glass: CYAN_STAINED_GLASS_PANE
 nav_active: 50
 
@@ -19,20 +19,13 @@ items:
 
   empty1:
     slot: 5
-    icon: LIGHT_GRAY_STAINED_GLASS_PANE
-    name: " "
-
+    icon: AIR
   empty2:
     slot: 14
-    icon: LIGHT_GRAY_STAINED_GLASS_PANE
-    name: " "
-
+    icon: AIR
   empty3:
     slot: 23
-    icon: LIGHT_GRAY_STAINED_GLASS_PANE
-    name: " "
-
+    icon: AIR
   empty4:
     slot: 32
-    icon: LIGHT_GRAY_STAINED_GLASS_PANE
-    name: " "
+    icon: AIR

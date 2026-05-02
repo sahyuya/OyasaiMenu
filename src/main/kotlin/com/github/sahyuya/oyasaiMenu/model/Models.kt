@@ -2,10 +2,6 @@ package com.github.sahyuya.oyasaiMenu.model
 
 import org.bukkit.Material
 
-// ============================================================
-// メニュー定義モデル
-// ============================================================
-
 data class MenuDefinition(
     val id: String,
     val title: String,
@@ -14,11 +10,8 @@ data class MenuDefinition(
 )
 
 /**
- * メニューアイテム定義。
- *
- * @param customTexture icon=CUSTOM_HEAD のとき使用するテクスチャハッシュ (64文字16進)。
- *                      null の場合は通常の Material として扱う。
- * @param icon          Material.AIR を指定するとそのスロットは空欄になる。
+ * @param icon          Material.AIR を指定するとそのスロットは空欄になる
+ * @param customTexture icon=CUSTOM_HEAD のとき使用するテクスチャハッシュ (64文字16進)
  */
 data class MenuItemDefinition(
     val slot: Int,
@@ -28,12 +21,8 @@ data class MenuItemDefinition(
     val actions: List<MenuAction> = emptyList(),
     val permission: String? = null,
     val template: String? = null,
-    val customTexture: String? = null          // ★ カスタムヘッド対応
+    val customTexture: String? = null
 )
-
-// ============================================================
-// アクション定義
-// ============================================================
 
 enum class ActionType {
     OPEN_MENU,
@@ -66,17 +55,10 @@ data class MenuAction(
     val success: List<MenuAction> = emptyList(),
     val fail: List<MenuAction> = emptyList()
 ) {
-    fun getString(key: String, default: String = ""): String =
-        params[key]?.toString() ?: default
-    fun getInt(key: String, default: Int = 0): Int =
-        params[key]?.toString()?.toIntOrNull() ?: default
-    fun getBoolean(key: String, default: Boolean = false): Boolean =
-        params[key]?.toString()?.toBooleanStrictOrNull() ?: default
+    fun getString(key: String, default: String = ""): String = params[key]?.toString() ?: default
+    fun getInt(key: String, default: Int = 0): Int = params[key]?.toString()?.toIntOrNull() ?: default
+    fun getBoolean(key: String, default: Boolean = false): Boolean = params[key]?.toString()?.toBooleanStrictOrNull() ?: default
 }
-
-// ============================================================
-// プレイヤー状態管理
-// ============================================================
 
 data class PlayerMenuState(
     val menuId: String,
@@ -84,10 +66,6 @@ data class PlayerMenuState(
     val isEditing: Boolean = false,
     val selectedItemKey: String? = null
 )
-
-// ============================================================
-// コマンドマクロ
-// ============================================================
 
 data class PlayerMacro(
     val id: String,

@@ -92,11 +92,11 @@ class ActionEngine(private val plugin: OyasaiMenu) {
             }
 
             ActionType.SOUND -> {
-                val soundName = action.getString("sound", "UI_BUTTON_CLICK").uppercase()
+                val soundName = action.getString("sound", "UI_BUTTON_CLICK").lowercase()
                 val volume = action.getString("volume", "1.0").toFloatOrNull() ?: 1.0f
                 val pitch  = action.getString("pitch",  "1.0").toFloatOrNull() ?: 1.0f
                 runCatching {
-                    player.playSound(player.location, org.bukkit.Sound.valueOf(soundName), volume, pitch)
+                    player.playSound(player.location, "minecraft:$soundName", volume, pitch)
                 }.onFailure { plugin.logger.warning("不明なサウンド: $soundName") }
             }
 
