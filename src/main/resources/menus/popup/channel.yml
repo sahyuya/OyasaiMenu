@@ -1,5 +1,4 @@
 # チャンネルメニュー
-# 画像2参照: 赤/ピンクガラス、col0 下から上 (グローバル→チャンネル2→チャンネル3→確認)
 title: "&cチャンネルメニュー"
 glass: RED_STAINED_GLASS_PANE
 nav_active: 46
@@ -66,6 +65,20 @@ items:
       - {player_cmd: "chwho 2"}
       - {player_cmd: "chwho 3"}
       - {console_cmd: 'tellraw %player% [{"bold":true,"color":"yellow","text":"---------------------------------------------\n"},{"bold":true,"color":"gray","text":"チャットルームの切り替え:\n"},{"color":"yellow","text":"/menuを開いてチャンネルメニューのパネルから選択\n"}]'}
+      - {close: true}
+
+  staff_channel:
+    slot: 1
+    icon: COMMAND_BLOCK
+    name: "&4[OP] スタッフチャンネル"
+    op_only: true
+    lore:
+      - "&cスタッフ専用チャンネルです"
+      - "&cOPのみ表示されます"
+      - ""
+      - "&eクリックで参加"
+    actions:
+      - {op_player_cmd: "ch st"}
       - {close: true}
 
   empty:

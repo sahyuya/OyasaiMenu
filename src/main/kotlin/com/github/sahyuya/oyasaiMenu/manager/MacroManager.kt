@@ -2,6 +2,7 @@ package com.github.sahyuya.oyasaiMenu.manager
 
 import com.github.sahyuya.oyasaiMenu.OyasaiMenu
 import com.github.sahyuya.oyasaiMenu.model.PlayerMacro
+import com.github.sahyuya.oyasaiMenu.util.GuiUtil.c
 import org.bukkit.Bukkit
 import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.entity.Player
@@ -11,35 +12,18 @@ import java.util.UUID
 /**
  * MacroManager
  *
- * ■ コマンド保存形式
- *   YAML の commands リストには "実行するコマンド文字列" を格納する。
- *   先頭スラッシュの扱い:
- *     /wand   → performCommand("wand")     → /wand 実行
- *     //wand  → removePrefix("/") → /wand → performCommand("/wand") → //wand 実行
- *     home    → performCommand("home")     → /home 実行
- *
- *   wait 指定の形式:
- *     "wait 1s"  / "wait 0.5s" / "wait 1.5s"  (秒単位, 小数OK)
- *
- * ■ executeMacro での wait 処理
- *   commands を先頭から順に処理し、wait に遭遇したら
- *   Bukkit.runTaskLater() で指定 tick 後に残りを再帰実行する。
- *   (= wait はコマンド間に挟める任意のウェイト)
- *
- * ■ 追加 API
- *   setCommandAtIndex   — /macro <id> <番号> <値> で1行を上書き/追加
- *   removeCommandAtIndex — /macro <id> <番号> remove で1行削除
+ * 変更点:
+ *   - distributeOpTemplates(player): OPログイン時にテンプレートマクロを配布
+ *     op-macro-templates.yml で定義、IDは "_op_<key>" 形式
  */
 class MacroManager(private val plugin: OyasaiMenu) {
 
     private val cache:     MutableMap<String, MutableList<PlayerMacro>> = mutableMapOf()
     private val cooldowns: MutableMap<String, Long>                     = mutableMapOf()
 
-    // wait コマンドの正規表現: "wait 1s" / "wait 0.5s" / "wait 1.5s"
     private val waitRegex = Regex("""^wait\s+(\d+(?:\.\d+)?)s?$""", RegexOption.IGNORE_CASE)
 
-    private val dataDir: File
-        get() = File(plugin.dataFolder, "userdata").also { it.mkdirs() }
+    private val dataDir: File get() = File(plugin.dataFolder, "userdata").also { it.mkdirs() }
 
     // ============================
     // 読み書き
@@ -121,33 +105,15 @@ class MacroManager(private val plugin: OyasaiMenu) {
         return removed
     }
 
-    /**
-     * 指定インデックスのコマンドを上書きまたは追加する。
-     * index が現在のリストサイズを超える場合は末尾に追加する。
-     * @param index  0-indexed
-     * @param value  コマンド文字列 ("//wand", "wait 1s" など)
-     */
     fun setCommandAtIndex(uuid: UUID, macroId: String, index: Int, value: String): String? {
         val macro = getMacro(uuid, macroId) ?: return "マクロ '$macroId' が見つかりません。"
         validateCommands(listOf(value))?.let { return it }
-
-        // removePrefix("/") で先頭の / を1つだけ除去して保存
-        val normalized = if (isWaitCommand(value)) value.trim()
-                         else value.trim().removePrefix("/")
-
+        val normalized = if (isWaitCommand(value)) value.trim() else value.trim().removePrefix("/")
         val commands = macro.commands.toMutableList()
-        if (index >= commands.size) {
-            commands.add(normalized)
-        } else {
-            commands[index] = normalized
-        }
+        if (index >= commands.size) commands.add(normalized) else commands[index] = normalized
         return updateMacro(uuid, macro.copy(commands = commands))
     }
 
-    /**
-     * 指定インデックスのコマンドを削除する。
-     * @param index  0-indexed
-     */
     fun removeCommandAtIndex(uuid: UUID, macroId: String, index: Int): String? {
         val macro = getMacro(uuid, macroId) ?: return "マクロ '$macroId' が見つかりません。"
         if (index !in macro.commands.indices)
@@ -158,22 +124,115 @@ class MacroManager(private val plugin: OyasaiMenu) {
     }
 
     // ============================
-    // 実行 (wait 対応)
+    // OPテンプレートマクロ配布
     // ============================
 
     /**
-     * マクロを実行する。
-     * wait コマンドに遭遇した場合は指定秒待機してから残りのコマンドを実行する。
-     * 実行元は常にプレイヤー (performCommand)。
-     *
-     * @return エラーメッセージ (成功なら null)
+     * OPプレイヤーにテンプレートマクロを配布する。
+     * op-macro-templates.yml に定義されたマクロを、まだ持っていない場合のみ追加する。
+     * テンプレートIDは "_op_<key>" 形式。
      */
+    fun distributeOpTemplates(player: Player) {
+        if (!player.isOp) return
+
+        val templateFile = File(plugin.dataFolder, "op-macro-templates.yml").also {
+            if (!it.exists()) createDefaultOpTemplates(it)
+        }
+
+        val yaml         = YamlConfiguration.loadConfiguration(templateFile)
+        val templatesSec = yaml.getConfigurationSection("templates") ?: return
+
+        var added = 0
+        templatesSec.getKeys(false).forEach { templateId ->
+            val sec      = templatesSec.getConfigurationSection(templateId) ?: return@forEach
+            val name     = sec.getString("name", templateId) ?: templateId
+            val commands = sec.getStringList("commands")
+            val cooldown = sec.getInt("cooldown", plugin.config.getInt("macro.cooldown-seconds", 3))
+            val macroId  = "_op_$templateId"
+
+            // 既に持っている場合はスキップ
+            if (getMacro(player.uniqueId, macroId) != null) return@forEach
+
+            val list = cache.getOrPut(player.uniqueId.toString()) { mutableListOf() }
+            list.add(PlayerMacro(
+                id              = macroId,
+                name            = name,
+                ownerUUID       = player.uniqueId.toString(),
+                commands        = commands,
+                cooldownSeconds = cooldown
+            ))
+            added++
+        }
+
+        if (added > 0) {
+            savePlayer(player.uniqueId)
+            // 1秒後に通知 (ログイン直後の他メッセージに埋もれないよう遅延)
+            Bukkit.getScheduler().runTaskLater(plugin, Runnable {
+                player.sendMessage(c("&b[OyasaiMenu] &a${added}個のOPマクロテンプレートを追加しました。(&e/macro &aで確認)"))
+            }, 20L)
+        }
+    }
+
+    private fun createDefaultOpTemplates(file: File) {
+        file.parentFile.mkdirs()
+        file.writeText("""# op-macro-templates.yml
+#
+# OPプレイヤーがログインした際に自動配布されるマクロテンプレートを定義します。
+# マクロIDは "_op_<キー名>" 形式で付与されます (例: _op_worldsettings)。
+# 既に同じIDのマクロを持っているプレイヤーには再配布しません。
+#
+# commands フォーマット:
+#   - コマンド文字列 (先頭スラッシュなし)
+#   - "wait 1s" / "wait 0.5s" でウェイト挿入可
+#
+# このファイルを編集後は /om reload でリロードできます。
+# ただし再配布は既にIDがないプレイヤーのみです。
+
+templates:
+
+  worldsettings:
+    name: "ワールド設定"
+    cooldown: 5
+    commands:
+      - "gamerule doDaylightCycle false"
+      - "gamerule doWeatherCycle false"
+      - "gamerule doMobSpawning false"
+      - "gamerule randomTickSpeed 0"
+      - "rg flag __global__ coral-fade deny"
+      - "gamerule playersNetherPortalDefaultDelay 100000000"
+      - "gamerule playersNetherPortalCreativeDelay 100000000"
+
+  timeday:
+    name: "昼にセット"
+    cooldown: 3
+    commands:
+      - "time set day"
+      - "weather clear"
+
+  clearlag:
+    name: "エンティティクリア"
+    cooldown: 10
+    commands:
+      - "kill @e[type=!player,type=!armor_stand,type=!item_frame]"
+
+  staffmode:
+    name: "スタッフチャンネル切替"
+    cooldown: 3
+    commands:
+      - "ch st"
+""", Charsets.UTF_8)
+        plugin.logger.info("op-macro-templates.yml をデフォルト内容で作成しました。")
+    }
+
+    // ============================
+    // 実行 (wait 対応)
+    // ============================
+
     fun executeMacro(player: Player, macroId: String): String? {
-        val macro = getMacro(player.uniqueId, macroId)
-            ?: return "マクロ '$macroId' が見つかりません。"
-        val key = "${player.uniqueId}:$macroId"
-        val now = System.currentTimeMillis()
-        val cd  = macro.cooldownSeconds * 1000L
+        val macro = getMacro(player.uniqueId, macroId) ?: return "マクロ '$macroId' が見つかりません。"
+        val key   = "${player.uniqueId}:$macroId"
+        val now   = System.currentTimeMillis()
+        val cd    = macro.cooldownSeconds * 1000L
         if (now - (cooldowns[key] ?: 0L) < cd) {
             val remaining = (cd - (now - (cooldowns[key] ?: 0L))) / 1000 + 1
             return "クールダウン中。あと ${remaining} 秒。"
@@ -183,28 +242,18 @@ class MacroManager(private val plugin: OyasaiMenu) {
         return null
     }
 
-    /**
-     * commands[index] から順番に実行する。
-     * wait コマンドに当たったら runTaskLater で残りを再帰呼び出し。
-     */
     private fun executeCommandsFrom(player: Player, commands: List<String>, index: Int) {
         if (index >= commands.size) return
         val cmd = commands[index].trim()
-
         val waitMatch = waitRegex.matchEntire(cmd)
         if (waitMatch != null) {
-            // wait Xs → X秒後に次のコマンドへ
             val seconds   = waitMatch.groupValues[1].toDoubleOrNull() ?: 0.0
             val delayTick = (seconds * 20.0).toLong().coerceAtLeast(1L)
             Bukkit.getScheduler().runTaskLater(plugin, Runnable {
                 executeCommandsFrom(player, commands, index + 1)
             }, delayTick)
         } else {
-            // 通常コマンド: performCommand に渡す
-            // 保存形式: "home" → performCommand("home") → /home
-            //           "/wand" → performCommand("/wand") → //wand
             player.performCommand(cmd)
-            // 次のコマンドへ (同期的に続行)
             executeCommandsFrom(player, commands, index + 1)
         }
     }
@@ -213,18 +262,12 @@ class MacroManager(private val plugin: OyasaiMenu) {
     // バリデーション
     // ============================
 
-    /**
-     * コマンドリストを検証する。
-     * - ホワイトリストが設定されている場合: wait 以外のコマンドについてチェック
-     * @return エラーメッセージ (問題なければ null)
-     */
     private fun validateCommands(commands: List<String>): String? {
         val whitelist = plugin.config.getStringList("macro.command-whitelist")
         if (whitelist.isEmpty()) return null
         val blocked = commands
             .filter { !isWaitCommand(it) }
             .filter { cmd ->
-                // 先頭スラッシュを取り除いた最初の単語でチェック
                 val base = cmd.removePrefix("/").removePrefix("/").split(" ").first()
                 whitelist.none { it.equals(base, ignoreCase = true) }
             }

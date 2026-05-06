@@ -10,9 +10,20 @@ import java.io.File
  * PopupMenuLoader
  *
  * 変更点:
+ *   - op_only: true → PopupItem.opOnly = true
+ *   - op_player_cmd / op_console_cmd アクション対応
  *   - suggest_command アクション対応
- *   - icon: AIR → PopupItem.icon = Material.AIR として保持
- *     (PopupMenuEngine 側で fillGlass の上書きをキャンセルする)
+ *   - icon: AIR / CUSTOM_HEAD 対応
+ *
+ * YAML 例 (op専用アイテム):
+ *   staff_ch:
+ *     slot: 1
+ *     icon: COMMAND_BLOCK
+ *     name: "&4[OP] スタッフチャンネル"
+ *     op_only: true
+ *     actions:
+ *       - {op_player_cmd: "ch st"}
+ *       - {close: true}
  */
 class PopupMenuLoader(private val plugin: OyasaiMenu) {
 
@@ -71,8 +82,6 @@ class PopupMenuLoader(private val plugin: OyasaiMenu) {
 
             val iconName = sec.getString("icon", "STONE")?.uppercase() ?: "STONE"
             val texture  = sec.getString("texture")
-
-            // CUSTOM_HEAD → PLAYER_HEAD + texture保持  /  AIR → そのまま保持
             val icon: Material = when {
                 iconName == "CUSTOM_HEAD" -> Material.PLAYER_HEAD
                 iconName == "AIR"         -> Material.AIR
@@ -82,6 +91,7 @@ class PopupMenuLoader(private val plugin: OyasaiMenu) {
             val enchanted = sec.getBoolean("enchanted", false)
             val name      = sec.getString("name", "") ?: ""
             val lore      = sec.getStringList("lore")
+            val opOnly    = sec.getBoolean("op_only", false)   // ★
 
             val actions = mutableListOf<PopupAction>()
             @Suppress("UNCHECKED_CAST")
@@ -97,7 +107,8 @@ class PopupMenuLoader(private val plugin: OyasaiMenu) {
                 name          = name,
                 lore          = lore,
                 enchanted     = enchanted,
-                actions       = actions
+                actions       = actions,
+                opOnly        = opOnly
             ))
         }
 
@@ -105,18 +116,19 @@ class PopupMenuLoader(private val plugin: OyasaiMenu) {
     }
 
     private fun parseAction(map: Map<String, Any>): PopupAction? = when {
-        map.containsKey("player_cmd")       -> PopupAction(PopupActionType.PLAYER_CMD,       map["player_cmd"].toString())
-        map.containsKey("console_cmd")      -> PopupAction(PopupActionType.CONSOLE_CMD,      map["console_cmd"].toString())
-        map.containsKey("url")              -> PopupAction(PopupActionType.URL,              map["url"].toString())
-        map.containsKey("chat_paste")       -> PopupAction(PopupActionType.CHAT_PASTE,       map["chat_paste"].toString())
-        map.containsKey("suggest_command")  -> PopupAction(PopupActionType.SUGGEST_COMMAND,  map["suggest_command"].toString())
-        map.containsKey("open_popup")       -> PopupAction(PopupActionType.OPEN_POPUP,       map["open_popup"].toString())
-        map.containsKey("open_shop")        -> PopupAction(PopupActionType.OPEN_SHOP,        map["open_shop"].toString())
-        map.containsKey("open_sell")        -> PopupAction(PopupActionType.OPEN_SELL,        "")
-        map.containsKey("open_macro")       -> PopupAction(PopupActionType.OPEN_MACRO,       "")
-        map.containsKey("open_point_shop")  -> PopupAction(PopupActionType.OPEN_POINT_SHOP,  map["open_point_shop"].toString())
-        map.containsKey("open_menu")        -> PopupAction(PopupActionType.OPEN_MENU,        map["open_menu"].toString())
-        map.containsKey("close")            -> PopupAction(PopupActionType.CLOSE,            "")
+        map.containsKey("player_cmd")      -> PopupAction(PopupActionType.PLAYER_CMD,      map["player_cmd"].toString())
+        map.containsKey("console_cmd")     -> PopupAction(PopupActionType.CONSOLE_CMD,     map["console_cmd"].toString())
+        map.containsKey("op_player_cmd")   -> PopupAction(PopupActionType.OP_PLAYER_CMD,   map["op_player_cmd"].toString())
+        map.containsKey("url")             -> PopupAction(PopupActionType.URL,             map["url"].toString())
+        map.containsKey("chat_paste")      -> PopupAction(PopupActionType.CHAT_PASTE,      map["chat_paste"].toString())
+        map.containsKey("suggest_command") -> PopupAction(PopupActionType.SUGGEST_COMMAND, map["suggest_command"].toString())
+        map.containsKey("open_popup")      -> PopupAction(PopupActionType.OPEN_POPUP,      map["open_popup"].toString())
+        map.containsKey("open_shop")       -> PopupAction(PopupActionType.OPEN_SHOP,       map["open_shop"].toString())
+        map.containsKey("open_sell")       -> PopupAction(PopupActionType.OPEN_SELL,       "")
+        map.containsKey("open_macro")      -> PopupAction(PopupActionType.OPEN_MACRO,      "")
+        map.containsKey("open_point_shop") -> PopupAction(PopupActionType.OPEN_POINT_SHOP, map["open_point_shop"].toString())
+        map.containsKey("open_menu")       -> PopupAction(PopupActionType.OPEN_MENU,       map["open_menu"].toString())
+        map.containsKey("close")           -> PopupAction(PopupActionType.CLOSE,           "")
         else -> null
     }
 }

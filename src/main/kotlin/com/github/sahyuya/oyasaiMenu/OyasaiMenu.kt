@@ -22,6 +22,7 @@ class OyasaiMenu : JavaPlugin(), Listener {
     lateinit var macroManager:          MacroManager
     lateinit var announcementManager:   AnnouncementManager
     lateinit var sellWhitelistManager:  SellWhitelistManager
+    lateinit var sharedMacroManager:    SharedMacroManager
 
     lateinit var menuEngine:       MenuEngine
     lateinit var actionEngine:     ActionEngine
@@ -43,6 +44,7 @@ class OyasaiMenu : JavaPlugin(), Listener {
         macroManager         = MacroManager(this)
         announcementManager  = AnnouncementManager(this)
         sellWhitelistManager = SellWhitelistManager(this)
+        sharedMacroManager   = SharedMacroManager(this)
 
         menuEngine       = MenuEngine(this)
         actionEngine     = ActionEngine(this)
@@ -97,7 +99,16 @@ class OyasaiMenu : JavaPlugin(), Listener {
     }
 
     @EventHandler
-    fun onPlayerLogin(event: PlayerLoginEvent) = macroManager.loadPlayer(event.player.uniqueId)
+    fun onPlayerLogin(event: PlayerLoginEvent) {
+        val player = event.player
+        macroManager.loadPlayer(player.uniqueId)
+        // OPプレイヤーにはテンプレートマクロを配布する
+        if (player.isOp) {
+            server.scheduler.runTaskLater(this, Runnable {
+                macroManager.distributeOpTemplates(player)
+            }, 1L)
+        }
+    }
 
     @EventHandler
     fun onPlayerQuit(event: PlayerQuitEvent) {

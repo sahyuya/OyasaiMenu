@@ -11,6 +11,7 @@ import net.kyori.adventure.text.event.ClickEvent
 import net.kyori.adventure.text.event.HoverEvent
 import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.format.TextDecoration
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
 import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.NamespacedKey
@@ -28,9 +29,10 @@ import org.bukkit.inventory.ItemStack
  * PopupMenuEngine
  *
  * 変更点:
- *   - SUGGEST_COMMAND: ClickEvent.suggestCommand() でチャット欄にコマンドを入力
- *   - AIR スロット: fillGlass で上書きしないよう、fillGlass 後に明示的にクリア
- *   - italic: comp() に TextDecoration.ITALIC=false を追加
+ *   - opOnly アイテム: isOp() == false のプレイヤーには表示しない (AIR と同じ扱い)
+ *   - OP_PLAYER_CMD / OP_CONSOLE_CMD: isOp() == false の場合は実行しない
+ *   - SUGGEST_COMMAND: ClickEvent.suggestCommand() でチャット欄に入力
+ *   - AIR スロット: fillGlass 後にクリアして空欄を維持
  */
 class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
 
@@ -54,14 +56,17 @@ class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
         val inv = Bukkit.createInventory(null, 54, comp(def.title))
 
         def.items.forEach { item ->
-            if (item.slot in 0..44 && !item.icon.isAir) {
-                inv.setItem(item.slot, buildItemStack(item))
-            }
+            if (item.slot !in 0..44) return@forEach
+            if (item.icon.isAir) return@forEach
+            if (item.opOnly && !player.isOp) return@forEach
+            inv.setItem(item.slot, buildItemStack(item))
         }
 
         NavBar.fillGlass(inv, def.glass)
-        def.items.filter { it.icon.isAir && it.slot in 0..44 }.forEach {
-            inv.setItem(it.slot, null)
+
+        def.items.filter { it.slot in 0..44 }.forEach { item ->
+            val shouldClear = item.icon.isAir || (item.opOnly && !player.isOp)
+            if (shouldClear) inv.setItem(item.slot, null)
         }
 
         NavBar.apply(inv, player, plugin, def.navActive)
@@ -99,11 +104,15 @@ class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
                 NavBar.apply(player.openInventory.topInventory, player, plugin, def.navActive)
                 player.playSound(player.location, org.bukkit.Sound.UI_BUTTON_CLICK, 0.5f, 1f)
             }
-            slot in 46..53 -> { val entry = NavBar.entries.find { it.slot == slot } ?: return; open(player, entry.popupId) }
+            slot in 46..53 -> {
+                val entry = NavBar.entries.find { it.slot == slot } ?: return
+                open(player, entry.popupId)
+            }
             slot in 0..44 -> {
                 val def  = plugin.popupMenuLoader.getPopup(popupId) ?: return
                 val item = def.items.find { it.slot == slot } ?: return
-                if (item.icon.isAir) return   // AIR スロットはクリック無視
+                if (item.icon.isAir) return
+                if (item.opOnly && !player.isOp) return
                 executeActions(player, item.actions)
             }
         }
@@ -115,7 +124,6 @@ class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
     }
 
     private fun executeActions(player: Player, actions: List<PopupAction>) {
-        // 即時処理 (GUIを閉じる前に送れるもの)
         for (action in actions) {
             when (action.type) {
                 PopupActionType.URL ->
@@ -136,7 +144,8 @@ class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
                 PopupActionType.OPEN_MACRO,
                 PopupActionType.OPEN_POINT_SHOP,
                 PopupActionType.OPEN_MENU,
-                PopupActionType.SUGGEST_COMMAND
+                PopupActionType.SUGGEST_COMMAND,
+                PopupActionType.OP_PLAYER_CMD
             )
         }
 
@@ -153,8 +162,17 @@ class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
     private fun dispatchDeferred(player: Player, actions: List<PopupAction>) {
         for (action in actions) {
             when (action.type) {
-                PopupActionType.PLAYER_CMD  -> player.performCommand(action.value.replace("%player%", player.name))
-                PopupActionType.CONSOLE_CMD -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), action.value.replace("%player%", player.name))
+                PopupActionType.PLAYER_CMD ->
+                    player.performCommand(action.value.replace("%player%", player.name))
+
+                PopupActionType.CONSOLE_CMD ->
+                    Bukkit.dispatchCommand(Bukkit.getConsoleSender(), action.value.replace("%player%", player.name))
+
+                PopupActionType.OP_PLAYER_CMD -> {
+                    if (!player.isOp) return
+                    player.performCommand(action.value.replace("%player%", player.name))
+                }
+
                 PopupActionType.SUGGEST_COMMAND -> {
                     val cmd = action.value.replace("%player%", player.name)
                     val msg = Component.text()
@@ -165,28 +183,35 @@ class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
                                 .color(NamedTextColor.YELLOW)
                                 .clickEvent(ClickEvent.suggestCommand(cmd))
                                 .hoverEvent(HoverEvent.showText(
-                                    Component.text("クリックでチャット欄に入力").color(NamedTextColor.GRAY)
+                                    Component.text("クリックでチャット欄に入力")
+                                        .color(NamedTextColor.GRAY)
                                         .decoration(TextDecoration.ITALIC, false)
                                 ))
                         )
                         .build()
                     player.sendMessage(msg)
                 }
+
                 PopupActionType.OPEN_POPUP  -> open(player, action.value)
+
                 PopupActionType.OPEN_SHOP   -> {
                     val cat = action.value
                     if (cat.isEmpty()) open(player, "shopindex")
                     else plugin.shopEngine.openShop(player, cat)
                 }
+
                 PopupActionType.OPEN_SELL        -> plugin.sellEngine.openSellMenu(player)
                 PopupActionType.OPEN_MACRO       -> plugin.macroEngine.openMacroList(player)
+
                 PopupActionType.OPEN_POINT_SHOP  -> {
                     val catId = if (action.value.isEmpty() || action.value == "true")
                         plugin.pointShopLoader.getAllCategories().keys.firstOrNull() ?: return
                     else action.value
                     plugin.pointShopEngine.openShop(player, catId)
                 }
+
                 PopupActionType.OPEN_MENU -> plugin.menuEngine.openMenu(player, action.value)
+
                 else -> {}
             }
         }
