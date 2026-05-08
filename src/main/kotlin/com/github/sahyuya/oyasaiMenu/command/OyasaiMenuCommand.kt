@@ -1,6 +1,7 @@
 package com.github.sahyuya.oyasaiMenu.command
 
 import com.github.sahyuya.oyasaiMenu.OyasaiMenu
+import com.github.sahyuya.oyasaiMenu.util.GuiUtil.c
 import io.papermc.paper.command.brigadier.BasicCommand
 import io.papermc.paper.command.brigadier.CommandSourceStack
 
@@ -8,7 +9,6 @@ import io.papermc.paper.command.brigadier.CommandSourceStack
 class OyasaiMenuCommand(private val plugin: OyasaiMenu) : BasicCommand {
     override fun execute(source: CommandSourceStack, args: Array<out String>) {
         val sender = source.sender
-        val c = { t: String -> t.replace('&', '\u00A7') }
         when (args.getOrNull(0)?.lowercase()) {
             "reload" -> {
                 if (!sender.hasPermission("oyasaimenu.admin")) { sender.sendMessage(c("&cリロード権限 (oyasaimenu.admin) がありません。")); return }
@@ -17,7 +17,7 @@ class OyasaiMenuCommand(private val plugin: OyasaiMenu) : BasicCommand {
             }
             else -> {
                 sender.sendMessage(c("&b&lOyasaiMenu &7v${plugin.description.version}"))
-                sender.sendMessage(c("&7/om reload &8— &7設定と YAML を再読み込みします (要: oyasaimenu.admin)"))
+                sender.sendMessage(c("&7/oyasaimenu reload &8— &7設定と YAML を再読み込みします。"))
             }
         }
     }

@@ -7,13 +7,13 @@ import org.bukkit.entity.Player
 
 @Suppress("UnstableApiUsage")
 class ShopCommand(private val plugin: OyasaiMenu) : BasicCommand {
-    private val shortcuts = mapOf("bl" to "blocks","deco" to "decorations","ore" to "ores","tool" to "tools","p" to "pshop")
+    private val shortcuts = mapOf("bl" to "blocks","deco" to "decorations","ore" to "ores","tool" to "tools","ps" to "pointshop")
     override fun execute(source: CommandSourceStack, args: Array<out String>) {
         val player = source.sender as? Player ?: run { source.sender.sendMessage("§cゲーム内から実行してください。"); return }
         if (!player.hasPermission("oyasaimenu.use")) { player.sendMessage("§cこのコマンドを使う権限がありません。"); return }
         if (args.isEmpty()) { plugin.popupMenuEngine.open(player, "shopindex"); return }
         val input = args[0].lowercase()
-        if (input == "p" || input == "pshop") {
+        if (input == "ps" || input == "pointshop") {
             if (plugin.pointShopLoader.getAllCategories().isEmpty()) { player.sendMessage("§cポイントショップが設定されていません。"); return }
             plugin.pointShopEngine.openShop(player, plugin.pointShopLoader.getAllCategories().keys.first()); return
         }
@@ -32,7 +32,7 @@ class ShopCommand(private val plugin: OyasaiMenu) : BasicCommand {
         val names = mutableListOf<String>()
         names += shortcuts.keys
         names += plugin.shopLoader.getAllCategories().values.flatMap { listOfNotNull(it.id, it.command) }
-        names += "pshop"
+        names += "pointshop"
         return names.distinct().sorted()
     }
 }

@@ -48,7 +48,6 @@ blocks:
     - mangrove_log 5 1
     - mangrove_wood 5 1
     - stripped_mangrove_log 5 1
-    - '' # ------------- new page
     - stripped_mangrove_wood 5 1
     - mangrove_planks 5 1
     - mangrove_stairs 5 1
@@ -76,7 +75,6 @@ blocks:
     - crimson_slab 5 1
     - warped_stem 5 1
     - warped_hyphae 5 1
-    #     - '' # ------------- new page
     - stripped_warped_stem 5 1
     - stripped_warped_hyphae 5 1
     - warped_planks 5 1
@@ -95,7 +93,6 @@ blocks:
     - stone_slab 5 1
     - cobblestone 5 1
     - cobblestone_stairs 5 1
-    - '' # ------------- new page
     - cobblestone_slab 5 1
     - mossy_stone_bricks 5 1
     - mossy_stone_brick_stairs 5 1
@@ -123,7 +120,6 @@ blocks:
     - diorite_stairs 5 1
     - diorite_slab 5 1
     - polished_diorite 5 1
-    #     - '' # ------------- new page
     - polished_diorite_stairs 5 1
     - polished_diorite_slab 5 1
     - andesite 5 1
@@ -142,7 +138,6 @@ blocks:
     - polished_deepslate_slab 5 1
     - cracked_deepslate_bricks 5 1
     - deepslate_bricks 5 1
-    - '' # ------------- new page
     - deepslate_brick_stairs 5 1
     - deepslate_brick_slab 5 1
     - cracked_deepslate_tiles 5 1
@@ -170,7 +165,6 @@ blocks:
     - prismarine_slab 5 1
     - prismarine_bricks 5 1
     - prismarine_brick_stairs 5 1
-    #     - '' # ------------- new page
     - prismarine_brick_slab 5 1
     - dark_prismarine 5 1
     - dark_prismarine_stairs 5 1
@@ -189,7 +183,6 @@ blocks:
     - fire_coral_block 5 1
     - horn_coral_block 5 1
     - dead_tube_coral_block 5 1
-    - '' # ------------- new page
     - dead_brain_coral_block 5 1
     - dead_bubble_coral_block 5 1
     - dead_fire_coral_block 5 1
@@ -217,7 +210,6 @@ blocks:
     - cut_sandstone_slab 5 1
     - netherrack 5 1
     - chiseled_nether_bricks 5 1
-    #     - '' # ------------- new page
     - cracked_nether_bricks 5 1
     - nether_bricks 5 1
     - nether_brick_stairs 5 1
@@ -236,7 +228,6 @@ blocks:
     - smooth_quartz_slab 5 1
     - gilded_blackstone 5 1
     - blackstone 5 1
-    - '' # ------------- new page
     - blackstone_stairs 5 1
     - blackstone_slab 5 1
     - chiseled_polished_blackstone 5 1
@@ -264,7 +255,6 @@ blocks:
     - waxed_weathered_copper 5 1
     - waxed_weathered_chiseled_copper 5 1
     - waxed_weathered_copper_grate 5 1
-    #     - '' # ------------- new page
     - waxed_weathered_cut_copper 5 1
     - waxed_weathered_cut_copper_stairs 5 1
     - waxed_weathered_cut_copper_slab 5 1
@@ -283,7 +273,6 @@ blocks:
     - brown_wool 5 1
     - red_wool 5 1
     - orange_wool 5 1
-    - '' # ------------- new page
     - yellow_wool 5 1
     - lime_wool 5 1
     - green_wool 5 1
@@ -311,7 +300,6 @@ blocks:
     - magenta_terracotta 5 1
     - pink_terracotta 5 1
     - white_concrete 5 1
-    #     - '' # ------------- new page
     - light_gray_concrete 5 1
     - gray_concrete 5 1
     - black_concrete 5 1
@@ -330,7 +318,6 @@ blocks:
     - white_concrete_powder 5 1
     - light_gray_concrete_powder 5 1
     - gray_concrete_powder 5 1
-    - '' # ------------- new page
     - black_concrete_powder 5 1
     - brown_concrete_powder 5 1
     - red_concrete_powder 5 1
@@ -358,7 +345,6 @@ blocks:
     - light_blue_glazed_terracotta 5 1
     - blue_glazed_terracotta 5 1
     - purple_glazed_terracotta 5 1
-    #     - '' # ------------- new page
     - magenta_glazed_terracotta 5 1
     - pink_glazed_terracotta 5 1
     - glass 5 1
@@ -377,7 +363,6 @@ blocks:
     - light_blue_stained_glass 5 1
     - blue_stained_glass 5 1
     - purple_stained_glass 5 1
-    - '' # ------------- new page
     - magenta_stained_glass 5 1
     - pink_stained_glass 5 1
     - grass_block 5 1
@@ -405,7 +390,6 @@ blocks:
     - crying_obsidian 5 1
     - crimson_nylium 5 1
     - warped_nylium 5 1
-    #     - '' # ------------- new page
     - soul_sand 5 1
     - soul_soil 5 1
     - bone_block 5 1
@@ -424,7 +408,6 @@ blocks:
     - hay_block 5 1
     - bee_nest 5 1
     - honeycomb_block 5 1
-    - '' # ------------- new page
     - slime_block 5 1
     - honey_block 5 1
     - ochre_froglight 5 1
@@ -456,7 +439,6 @@ decorations:
     - mangrove_sign 10 1
     - cherry_sign 10 1
     - pale_oak_sign 10 1
-    #
     - crimson_sign 10 1
     - warped_sign 10 1
     - bamboo_sign 10 1
@@ -466,7 +448,6 @@ decorations:
     - jungle_fence 10 1
     - acacia_fence 10 1
     - dark_oak_fence 10 1
-    #
     - mangrove_fence 10 1
     - cherry_fence 10 1
     - pale_oak_fence 10 1
@@ -476,7 +457,6 @@ decorations:
     - nether_brick_fence 10 1
     - oak_fence_gate 10 1
     - spruce_fence_gate 10 1
-    #
     - birch_fence_gate 10 1
     - jungle_fence_gate 10 1
     - acacia_fence_gate 10 1
@@ -486,7 +466,6 @@ decorations:
     - pale_oak_fence_gate 10 1
     - crimson_fence_gate 10 1
     - warped_fence_gate 10 1
-    #
     - bamboo_fence_gate 10 1
     - oak_door 10 1
     - spruce_door 10 1
@@ -496,7 +475,6 @@ decorations:
     - dark_oak_door 10 1
     - mangrove_door 10 1
     - cherry_door 10 1
-    - '' # -------------  new page
     - pale_oak_door 10 1
     - crimson_door 10 1
     - warped_door 10 1
@@ -506,7 +484,6 @@ decorations:
     - birch_hanging_sign 10 1
     - jungle_hanging_sign 10 1
     - acacia_hanging_sign 10 1
-    #
     - dark_oak_hanging_sign 10 1
     - mangrove_hanging_sign 10 1
     - cherry_hanging_sign 10 1
@@ -516,7 +493,6 @@ decorations:
     - bamboo_hanging_sign 10 1
     - oak_trapdoor 10 1
     - spruce_trapdoor 10 1
-    #
     - birch_trapdoor 10 1
     - jungle_trapdoor 10 1
     - acacia_trapdoor 10 1
@@ -526,7 +502,6 @@ decorations:
     - pale_oak_trapdoor 10 1
     - crimson_trapdoor 10 1
     - warped_trapdoor 10 1
-    #
     - bamboo_trapdoor 10 1
     - rail 10 1
     - powered_rail 10 1
@@ -536,7 +511,6 @@ decorations:
     - mossy_cobblestone_wall 10 1
     - stone_brick_wall 10 1
     - mossy_stone_brick_wall 10 1
-    #
     - granite_wall 10 1
     - diorite_wall 10 1
     - andesite_wall 10 1
@@ -546,7 +520,6 @@ decorations:
     - deepslate_tile_wall 10 1
     - tuff_wall 10 1
     - polished_tuff_wall 10 1
-    - '' # -------------  new page
     - tuff_brick_wall 10 1
     - mud_brick_wall 10 1
     - sandstone_wall 10 1
@@ -556,7 +529,6 @@ decorations:
     - red_nether_brick_wall 10 1
     - brick_wall 10 1
     - blackstone_wall 10 1
-    #
     - polished_blackstone_wall 10 1
     - polished_blackstone_brick_wall 10 1
     - end_stone_brick_wall 10 1
@@ -566,7 +538,6 @@ decorations:
     - iron_trapdoor 10 1
     - heavy_weighted_pressure_plate 10 1
     - light_weighted_pressure_plate 10 1
-    #
     - chain 10 1
     - waxed_copper_door 10 1
     - waxed_exposed_copper_door 10 1
@@ -576,7 +547,6 @@ decorations:
     - waxed_exposed_copper_trapdoor 10 1
     - waxed_weathered_copper_trapdoor 10 1
     - waxed_oxidized_copper_trapdoor 10 1
-    #
     - white_carpet 10 1
     - light_gray_carpet 10 1
     - gray_carpet 10 1
@@ -586,7 +556,6 @@ decorations:
     - orange_carpet 10 1
     - yellow_carpet 10 1
     - lime_carpet 10 1
-    #
     - green_carpet 10 1
     - cyan_carpet 10 1
     - light_blue_carpet 10 1
@@ -596,7 +565,6 @@ decorations:
     - pink_carpet 10 1
     - pointed_dripstone 10 1
     - snow 10 1
-    - '' # -------------  new page
     - moss_carpet 10 1
     - pale_moss_carpet 10 1
     - amethyst_cluster 10 1
@@ -606,7 +574,6 @@ decorations:
     - glass_pane 10 1
     - white_stained_glass_pane 10 1
     - light_gray_stained_glass_pane 10 1
-    #
     - gray_stained_glass_pane 10 1
     - black_stained_glass_pane 10 1
     - brown_stained_glass_pane 10 1
@@ -616,7 +583,6 @@ decorations:
     - lime_stained_glass_pane 10 1
     - green_stained_glass_pane 10 1
     - cyan_stained_glass_pane 10 1
-    #
     - light_blue_stained_glass_pane 10 1
     - blue_stained_glass_pane 10 1
     - purple_stained_glass_pane 10 1
@@ -626,7 +592,6 @@ decorations:
     - white_shulker_box 10 1
     - light_gray_shulker_box 10 1
     - gray_shulker_box 10 1
-    #
     - black_shulker_box 10 1
     - brown_shulker_box 10 1
     - red_shulker_box 10 1
@@ -636,7 +601,6 @@ decorations:
     - green_shulker_box 10 1
     - cyan_shulker_box 10 1
     - light_blue_shulker_box 10 1
-    #
     - blue_shulker_box 10 1
     - purple_shulker_box 10 1
     - magenta_shulker_box 10 1
@@ -646,7 +610,6 @@ decorations:
     - gray_bed 10 1
     - black_bed 10 1
     - brown_bed 10 1
-    - '' # -------------  new page
     - red_bed 10 1
     - orange_bed 10 1
     - yellow_bed 10 1
@@ -656,7 +619,6 @@ decorations:
     - light_blue_bed 10 1
     - blue_bed 10 1
     - purple_bed 10 1
-    #
     - magenta_bed 10 1
     - pink_bed 10 1
     - candle 10 1
@@ -693,7 +655,6 @@ decorations:
     - magenta_banner 10 1
     - pink_banner 10 1
     - oak_leaves 10 1
-    - '' # -------------  new page
     - spruce_leaves 10 1
     - birch_leaves 10 1
     - jungle_leaves 10 1
@@ -739,7 +700,6 @@ decorations:
     - pink_tulip 10 1
     - oxeye_daisy 10 1
     - cornflower 10 1
-    - '' # -------------  new page
     - lily_of_the_valley 10 1
     - torchflower 10 1
     - wither_rose 10 1
@@ -785,7 +745,6 @@ decorations:
     - horn_coral 10 1
     - dead_tube_coral 10 1
     - dead_brain_coral 10 1
-    - '' # -------------  new page
     - dead_bubble_coral 10 1
     - dead_fire_coral 10 1
     - dead_horn_coral 10 1
@@ -831,7 +790,6 @@ decorations:
     - enchanting_table 10 1
     - brewing_stand 10 1
     - cauldron 10 1
-    - '' # -------------  new page
     - bell 10 1
     - beacon 10 1
     - conduit 10 1
@@ -877,7 +835,6 @@ decorations:
     - bamboo_button 10 1
     - warped_button 10 1
     - crimson_button 10 1
-    - '' # -------------  new page
     - stone_button 10 1
     - polished_blackstone_button 10 1
     - respawn_anchor 10 1

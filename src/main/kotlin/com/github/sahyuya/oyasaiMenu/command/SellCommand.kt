@@ -1,6 +1,7 @@
 package com.github.sahyuya.oyasaiMenu.command
 
 import com.github.sahyuya.oyasaiMenu.OyasaiMenu
+import com.github.sahyuya.oyasaiMenu.manager.CooldownManager
 import com.github.sahyuya.oyasaiMenu.manager.EconomyManager
 import com.github.sahyuya.oyasaiMenu.util.GuiUtil.c
 import io.papermc.paper.command.brigadier.BasicCommand
@@ -32,18 +33,17 @@ class SellCommand(private val plugin: OyasaiMenu) : BasicCommand {
         return listOf("hand", "all").filter { it.startsWith(prefix, ignoreCase = true) }
     }
 
-    // ============================
-    // sell hand
-    // ============================
-
     private fun sellHand(player: Player) {
+        if (CooldownManager.isCommandOnCooldown(player.uniqueId)) {
+            player.sendMessage(c("&cもう少し待ってから実行してください。")); return
+        }
         val item = player.inventory.itemInMainHand
         if (item.type.isAir) { player.sendMessage(c("&c手に何も持っていません。")); return }
 
         val price = plugin.sellEngine.getSellPrice(item)
         if (price == null || price <= 0) {
-            val hasCustom = item.itemMeta?.hasDisplayName() == true
-            val hint = if (hasCustom) " &7(カスタム名付きアイテムはホワイトリスト登録が必要です)"
+            val hasCustom = plugin.sellWhitelistManager.hasCustomContent(item)
+            val hint = if (hasCustom) " &7(カスタムアイテムはホワイトリスト登録が必要です)"
                        else " &7(ショップに売却登録されていません)"
             player.sendMessage(c("&c${item.type.name.lowercase()} は売却できません。$hint"))
             return
@@ -56,21 +56,20 @@ class SellCommand(private val plugin: OyasaiMenu) : BasicCommand {
         player.playSound(player.location, org.bukkit.Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 0.8f)
     }
 
-    // ============================
-    // sell all
-    // ============================
-
     private fun sellAll(player: Player) {
-        var earned = 0.0
-        var count  = 0
+        if (CooldownManager.isCommandOnCooldown(player.uniqueId)) {
+            player.sendMessage(c("&c時間を置いて実行してください。")); return
+        }
+
+        var earned  = 0.0
+        var count   = 0
         var skipped = 0
 
         player.inventory.contents.forEachIndexed { i, stack ->
             if (stack == null || stack.type.isAir) return@forEachIndexed
             val price = plugin.sellEngine.getSellPrice(stack)
             if (price != null && price > 0) {
-                earned += price * stack.amount
-                count  += stack.amount
+                earned += price * stack.amount; count += stack.amount
                 player.inventory.setItem(i, null)
             } else {
                 skipped++
@@ -78,17 +77,14 @@ class SellCommand(private val plugin: OyasaiMenu) : BasicCommand {
         }
 
         if (count == 0) {
-            val hint = if (skipped > 0) " &7(売却不可 ${skipped}種あり)" else ""
-            player.sendMessage(c("&c売却できるアイテムがありませんでした。$hint"))
+            player.sendMessage(c("&c売却できるアイテムがありませんでした." +
+                if (skipped > 0) " &7(売却不可 ${skipped}種あり)" else ""))
             return
         }
 
         EconomyManager.deposit(player, earned)
         val suffix = if (skipped > 0) " &7(スキップ ${skipped}種)" else ""
-        player.sendMessage(c(
-            "&a全売却: &f${count}個  +${EconomyManager.format(earned)} " +
-            "&7残高: &f${EconomyManager.format(EconomyManager.getBalance(player))}$suffix"
-        ))
+        player.sendMessage(c("&a全売却: &f${count}個  +${EconomyManager.format(earned)} &7残高: &f${EconomyManager.format(EconomyManager.getBalance(player))}$suffix"))
         player.playSound(player.location, org.bukkit.Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f)
     }
 }

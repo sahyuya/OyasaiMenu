@@ -18,11 +18,9 @@ import java.util.UUID
  * AnnouncementManager
  *
  * 変更点:
- *   - 署名時 (isSigning=true): isCancelled=true でサイン処理をキャンセル後、
- *     1tick後に WRITABLE_BOOK をインベントリから削除する
- *   - Done時 (isSigning=false): 同様に WRITABLE_BOOK を削除する
- *   → 両ケースで本が手元に残らない
- *   - デフォルトテキストのカラーを白 (&f) に統一
+ *   - announcements.yml が存在しない場合は saveResource() で JAR リソースから展開する
+ *   - Kotlin 文字列によるデフォルト内容の書き込みを廃止
+ *   - 署名・Done どちらでも本を削除する
  */
 class AnnouncementManager(private val plugin: OyasaiMenu) : Listener {
 
@@ -39,7 +37,10 @@ class AnnouncementManager(private val plugin: OyasaiMenu) : Listener {
     // ============================
 
     fun loadAll() {
-        val file = resolveFile() ?: return
+        val file = resolveFile() ?: run {
+            plugin.logger.warning("announcements.yml が見つからず生成にも失敗しました。")
+            return
+        }
         runCatching { parseFile(file) }
             .onFailure { e -> plugin.logger.warning("AnnouncementManager: YAML 解析エラー — ${e.message}") }
         plugin.logger.info("お知らせ: ロード完了 title='$currentTitle' / ${currentBody.size}行")
@@ -77,10 +78,9 @@ class AnnouncementManager(private val plugin: OyasaiMenu) : Listener {
         if (currentBody.isEmpty()) {
             meta.addPage(
                 "ここにお知らせの内容を書いてください。\n" +
-                "改行ごとに Lore の1行になります。\n" +
-                "ページをまたいでも大丈夫です。\n" +
-                "・Done だけで確定 (本は消えます)\n" +
-                "・署名して確定するとその名前がタイトルになります (本は消えます)"
+                "改行ごとに Lore の1行になります。\n\n" +
+                "Done のみ → Lore を更新 (本は消えます)\n" +
+                "署名して確定 → 署名名がタイトルになります (本は消えます)"
             )
         } else {
             splitIntoPages(currentBody.joinToString("\n"), 254).forEach { meta.addPage(it) }
@@ -91,9 +91,7 @@ class AnnouncementManager(private val plugin: OyasaiMenu) : Listener {
         player.inventory.heldItemSlot = slot
         pendingBookEditors.add(player.uniqueId)
         player.sendMessage(c("&b=== お知らせ本エディタ ==="))
-        player.sendMessage(c("&7各行 → Lore 1行 (ページをまたいでOK)"))
-        player.sendMessage(c("&7Done のみ → Lore を更新 (本は消えます)"))
-        player.sendMessage(c("&7署名して確定 → 署名名が &fタイトル&7 になります (本は消えます)"))
+        player.sendMessage(c("&7各行 → Lore 1行  Done か署名で確定 (本は消えます)"))
         player.sendMessage(c("&7現在のタイトル: &f${currentTitle.replace('&', '\u00A7')}"))
     }
 
@@ -112,22 +110,19 @@ class AnnouncementManager(private val plugin: OyasaiMenu) : Listener {
             .split("\n").map { it.trim() }.filter { it.isNotEmpty() }
         currentBody = newBody.toMutableList()
 
-        // 署名あり → タイトルも更新 (cancel より先に newBookMeta から読む)
         if (event.isSigning) {
             val bookTitle = meta.title()?.let { plainText.serialize(it) }?.trim()
             if (!bookTitle.isNullOrEmpty()) {
                 currentTitle = bookTitle
                 event.player.sendMessage(c("&aタイトル更新: &f${currentTitle.replace('&', '\u00A7')}"))
             }
-            // ★ 署名処理をキャンセル (本を署名済み書籍に変換させない)
             event.isCancelled = true
         }
 
-        saveToFile()
-        broadcastRefresh()
+        saveToFile(); broadcastRefresh()
         event.player.sendMessage(c("&aお知らせを更新しました。Lore &f${currentBody.size}&a行"))
 
-        // ★ 署名・Done どちらの場合も本をインベントリから削除する
+        // 署名・Done どちらでも本を削除する
         plugin.server.scheduler.runTaskLater(plugin, Runnable {
             val inv = event.player.inventory
             for (i in 0 until inv.size) {
@@ -161,17 +156,24 @@ class AnnouncementManager(private val plugin: OyasaiMenu) : Listener {
     }
 
     // ============================
-    // ファイル解決 / パース
+    // ファイル解決
     // ============================
 
+    /**
+     * announcements.yml を返す。
+     * 存在しない場合は JAR リソースから saveResource() で展開する。
+     * それでも存在しない場合は null を返す。
+     */
     private fun resolveFile(): File? {
-        val dir  = plugin.dataFolder.also { if (!it.exists()) it.mkdirs() }
-        val file = File(dir, "announcements.yml")
+        plugin.dataFolder.also { if (!it.exists()) it.mkdirs() }
+        val file = File(plugin.dataFolder, "announcements.yml")
         if (file.exists()) return file
+
+        // JAR リソースから展開
         runCatching { plugin.saveResource("announcements.yml", false) }
-            .onSuccess { if (file.exists()) return file }
-        return runCatching { createDefault(file); file }
-            .getOrElse { e -> plugin.logger.warning("announcements.yml 生成失敗: ${e.message}"); null }
+            .onFailure { plugin.logger.warning("announcements.yml のリソース展開失敗: ${it.message}") }
+
+        return if (file.exists()) file else null
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -184,23 +186,9 @@ class AnnouncementManager(private val plugin: OyasaiMenu) : Listener {
         currentBody  = ((first["body"] as? List<*>)?.mapNotNull { it?.toString() } ?: emptyList()).toMutableList()
     }
 
-    private fun createDefault(file: File) {
-        file.parentFile?.mkdirs()
-        // ★ デフォルトテキストを白 (&f) に
-        file.writeText("""# announcements.yml
-announcements:
-  - title: '&f✦ ようこそおやさい鯖へ！'
-    body:
-      - '&fサーバー情報はWikiやリンク集からご確認ください。'
-      - '&fDiscordでも各種お知らせを発信しています。'
-""", Charsets.UTF_8)
-        currentTitle = "&f✦ ようこそおやさい鯖へ！"
-        currentBody  = mutableListOf(
-            "&fサーバー情報はWikiやリンク集からご確認ください。",
-            "&fDiscordでも各種お知らせを発信しています。"
-        )
-        plugin.logger.info("announcements.yml をデフォルト内容で作成しました。")
-    }
+    // ============================
+    // ユーティリティ
+    // ============================
 
     private fun splitIntoPages(text: String, maxChars: Int): List<String> {
         if (text.length <= maxChars) return listOf(text)

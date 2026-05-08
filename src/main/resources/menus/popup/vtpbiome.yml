@@ -8,58 +8,112 @@ items:
   snowyplains:
     slot: 0
     icon: SNOW
-    name: "&a雪原 (Snowy Plains)"
+    name: "&f雪原 (Snowy Plains)"
     lore: ["/vtp SNOWY_PLAINS"]
     actions:
       - {player_cmd: "vtp SNOWY_PLAINS"}
       - {close: true}
 
-  icespikes:
-    slot: 1
-    icon: PACKED_ICE
-    name: "&2氷樹 (Ice Spikes)"
-    lore: ["/vtp ICE_SPIKES"]
-    actions:
-      - {player_cmd: "vtp ICE_SPIKES"}
-      - {close: true}
-
   snowytaiga:
-    slot: 2
+    slot: 1
     icon: PLAYER_HEAD
     texture: "9739f8fb6c5f2171ea4ae24973e1974e1fd707d7088d4db08625d555ee2937d3"
-    name: "&e雪のタイガ (Snowy Taiga)"
+    name: "&f雪のタイガ (Snowy Taiga)"
     lore: ["/vtp SNOWY_TAIGA"]
     actions:
       - {player_cmd: "vtp SNOWY_TAIGA"}
       - {close: true}
 
   snowyslopes:
-    slot: 3
+    slot: 2
     icon: SNOW_BLOCK
-    name: "&b雪の斜面 (Snowy Slopes)"
+    name: "&f雪の斜面 (Snowy Slopes)"
     lore: ["/vtp SNOWY_SLOPES"]
     actions:
       - {player_cmd: "vtp SNOWY_SLOPES"}
+      - {close: true}
+
+  icespikes:
+    slot: 3
+    icon: PACKED_ICE
+    name: "&9氷樹 (Ice Spikes)"
+    lore: ["/vtp ICE_SPIKES"]
+    actions:
+      - {player_cmd: "vtp ICE_SPIKES"}
       - {close: true}
 
   jaggedpeaks:
     slot: 4
     icon: PLAYER_HEAD
     texture: "ef74c2e4c0b222e42e8cddf3ba8f6b546c5103ada2c9c15461abc3fa3f42509"
-    name: "&f尖った山頂 (Jagged Peaks)"
+    name: "&b尖った山頂 (Jagged Peaks)"
     lore: ["/vtp JAGGED_PEAKS"]
     actions:
       - {player_cmd: "vtp JAGGED_PEAKS"}
       - {close: true}
 
-  taiga:
+  plains:
     slot: 9
+    icon: GRASS_BLOCK
+    name: "&a平原 (Plains)"
+    lore: ["/vtp PLAINS"]
+    actions:
+      - {player_cmd: "vtp PLAINS"}
+      - {close: true}
+
+  forest:
+    slot: 10
+    icon: OAK_SAPLING
+    name: "&2森林 (Forest)"
+    lore: ["/vtp FOREST"]
+    actions:
+      - {player_cmd: "vtp FOREST"}
+      - {close: true}
+
+  birchforest:
+    slot: 11
+    icon: BIRCH_SAPLING
+    name: "&2シラカバの森 (Birch Forest)"
+    lore: ["/vtp BIRCH_FOREST"]
+    actions:
+      - {player_cmd: "vtp BIRCH_FOREST"}
+      - {close: true}
+
+  taiga:
+    slot: 12
     icon: SPRUCE_SAPLING
     name: "&2タイガ (Taiga)"
     lore: ["/vtp TAIGA"]
     actions:
       - {player_cmd: "vtp TAIGA"}
       - {close: true}
+
+  darkforest:
+    slot: 13
+    icon: DARK_OAK_SAPLING
+    name: "&2暗い森 (Dark Forest)"
+    lore: ["/vtp DARK_FOREST"]
+    actions:
+      - {player_cmd: "vtp DARK_FOREST"}
+      - {close: true}
+
+  jungle:
+    slot: 14
+    icon: JUNGLE_SAPLING
+    name: "&2ジャングル (Jungle)"
+    lore: [ "/vtp JUNGLE" ]
+    actions:
+      - { player_cmd: "vtp JUNGLE" }
+      - { close: true }
+
+  savanna:
+    slot: 27
+    icon: ACACIA_SAPLING
+    name: "&dサバンナ (Savanna)"
+    lore: [ "/vtp SAVANNA" ]
+    actions:
+      - { player_cmd: "vtp SAVANNA" }
+      - { close: true }
 
   oldgrowthpinetaiga:
     slot: 10
@@ -79,24 +133,6 @@ items:
       - {player_cmd: "vtp OLD_GROWTH_SPRUCE_TAIGA"}
       - {close: true}
 
-  plains:
-    slot: 12
-    icon: GRASS_BLOCK
-    name: "&6平原 (Plains)"
-    lore: ["/vtp PLAINS"]
-    actions:
-      - {player_cmd: "vtp PLAINS"}
-      - {close: true}
-
-  forest:
-    slot: 13
-    icon: OAK_SAPLING
-    name: "&9森林 (Forest)"
-    lore: ["/vtp FOREST"]
-    actions:
-      - {player_cmd: "vtp FOREST"}
-      - {close: true}
-
   flowerforest:
     slot: 14
     icon: RED_TULIP
@@ -104,24 +140,6 @@ items:
     lore: ["/vtp FLOWER_FOREST"]
     actions:
       - {player_cmd: "vtp FLOWER_FOREST"}
-      - {close: true}
-
-  birchforest:
-    slot: 15
-    icon: BIRCH_SAPLING
-    name: "&dシラカバの森 (Birch Forest)"
-    lore: ["/vtp BIRCH_FOREST"]
-    actions:
-      - {player_cmd: "vtp BIRCH_FOREST"}
-      - {close: true}
-
-  darkforest:
-    slot: 16
-    icon: DARK_OAK_SAPLING
-    name: "&d暗い森 (Dark Forest)"
-    lore: ["/vtp DARK_FOREST"]
-    actions:
-      - {player_cmd: "vtp DARK_FOREST"}
       - {close: true}
 
   swamp:
@@ -142,15 +160,6 @@ items:
     actions:
       - {player_cmd: "vtp MANGROVE_SWAMP"}
       - {close: true}
-
-  jungle:
-    slot: 19
-    icon: JUNGLE_SAPLING
-    name: "&dジャングル (Jungle)"
-    lore: [ "/vtp JUNGLE" ]
-    actions:
-      - { player_cmd: "vtp JUNGLE" }
-      - { close: true }
 
   bamboojungle:
     slot: 20
@@ -216,15 +225,6 @@ items:
     lore: [ "/vtp DESERT" ]
     actions:
       - { player_cmd: "vtp DESERT" }
-      - { close: true }
-
-  savanna:
-    slot: 27
-    icon: ACACIA_SAPLING
-    name: "&dサバンナ (Savanna)"
-    lore: [ "/vtp SAVANNA" ]
-    actions:
-      - { player_cmd: "vtp SAVANNA" }
       - { close: true }
 
   windsweptsavanna:

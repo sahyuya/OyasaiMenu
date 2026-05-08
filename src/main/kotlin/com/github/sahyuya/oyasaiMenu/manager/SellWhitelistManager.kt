@@ -4,26 +4,25 @@ import com.github.sahyuya.oyasaiMenu.OyasaiMenu
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.inventory.ItemStack
+import org.bukkit.inventory.meta.BookMeta
 import org.bukkit.inventory.meta.Damageable
 import org.bukkit.inventory.meta.EnchantmentStorageMeta
+import org.bukkit.inventory.meta.PotionMeta
 import java.io.File
 import java.util.Base64
 
 /**
  * SellWhitelistManager
  *
- * カスタム名付きアイテムの売却を許可するホワイトリストを管理する。
+ * ■ カスタムアイテム判定の修正
+ *   - WRITTEN_BOOK (記入済みの本) は hasDisplayName() が false でも
+ *     BookMeta の title/author で識別されるため「カスタムアイテム」として扱う
+ *   - より厳密なコンポーネント比較を実装:
+ *     type / custom_name / enchantments / stored_enchantments /
+ *     book_title+author / potion_type を比較
  *
- * ■ 売却ルール
- *   - バニラ名 (hasDisplayName() == false) かつマテリアルがショップ登録済み
- *     → ショップ売値で売れる (ゆるいチェック、SellEngine側で判定)
- *   - カスタム名ありアイテム
- *     → ホワイトリストにデータコンポーネントが一致するエントリのみ売れる
- *
- * ■ データコンポーネント比較
- *   - type / custom_name / enchantments / stored_enchantments を比較
- *   - 耐久値 (damage) は無視 (使用済みアイテムでも売れる)
- *   - lore は比較しない
+ * ■ hasCustomContent() ヘルパー
+ *   SellEngine から呼び出してカスタムアイテムかどうかを判定する
  */
 class SellWhitelistManager(private val plugin: OyasaiMenu) {
 
@@ -46,33 +45,56 @@ class SellWhitelistManager(private val plugin: OyasaiMenu) {
 
     fun loadAll() {
         entries.clear()
-
         if (!file.exists()) {
             file.parentFile.mkdirs()
             file.writeText("""# sell-whitelist.yml
-# カスタム名付きアイテムの売却を許可するホワイトリスト。
+# カスタム名付きアイテム・特殊アイテムの売却を許可するホワイトリスト。
 # /menuedit whitelist add hand <売値> でインゲームから追加できます。
-# バニラ名のアイテムはショップ登録だけで売れるため、ここへの登録は不要です。
 entries: []
 """, Charsets.UTF_8)
         }
 
         val yaml = YamlConfiguration.loadConfiguration(file)
-
         @Suppress("UNCHECKED_CAST")
-        val rawList = yaml.getList("entries") ?: emptyList<Any>()
-        rawList.filterIsInstance<Map<*, *>>().forEach { map ->
-            val id          = map["id"]?.toString()           ?: return@forEach
-            val displayName = map["display_name"]?.toString() ?: ""
-            val material    = map["material"]?.toString()     ?: ""
-            val sellPrice   = (map["sell_price"] as? Number)?.toDouble() ?: return@forEach
-            val itemData    = map["item_data"]?.toString()    ?: return@forEach
-            entries.add(WhitelistEntry(id, displayName, material, sellPrice, itemData))
-        }
+        (yaml.getList("entries") ?: emptyList<Any>())
+            .filterIsInstance<Map<*, *>>()
+            .forEach { map ->
+                val id          = map["id"]?.toString()           ?: return@forEach
+                val displayName = map["display_name"]?.toString() ?: ""
+                val material    = map["material"]?.toString()     ?: ""
+                val sellPrice   = (map["sell_price"] as? Number)?.toDouble() ?: return@forEach
+                val itemData    = map["item_data"]?.toString()    ?: return@forEach
+                entries.add(WhitelistEntry(id, displayName, material, sellPrice, itemData))
+            }
         plugin.logger.info("売却ホワイトリスト: ${entries.size} 件")
     }
 
     fun reload() = loadAll()
+
+    // ============================
+    // カスタムアイテム判定
+    // ============================
+
+    /**
+     * このアイテムがホワイトリスト照合が必要な「カスタムアイテム」かどうかを返す。
+     * バニラ名かつショップ登録済みならショップ価格で売れるため不要。
+     *
+     * 以下のいずれかを満たす場合はカスタムアイテムとして扱う:
+     *   - hasDisplayName() == true (カスタム名あり)
+     *   - WRITTEN_BOOK (記入済みの本: BookMetaのtitle/authorで識別)
+     *   - カスタムモデルデータあり
+     */
+    fun hasCustomContent(item: ItemStack): Boolean {
+        if (item.type.isAir) return false
+        val meta = item.itemMeta ?: return false
+        if (meta.hasDisplayName()) return true
+        if (meta is BookMeta) {
+            // 記入済みの本 (WRITTEN_BOOK) は title または pages があればカスタム扱い
+            if (meta.hasTitle() || meta.pageCount > 0) return true
+        }
+        if (meta.hasCustomModelData()) return true
+        return false
+    }
 
     // ============================
     // 価格照会
@@ -80,7 +102,7 @@ entries: []
 
     /**
      * アイテムがホワイトリストに一致する場合の売却価格を返す。
-     * 一致しない場合は null。耐久値は無視して比較する。
+     * 耐久値は無視して比較する。
      */
     fun getPrice(item: ItemStack): Double? {
         val normalized = normalizeForComparison(item)
@@ -97,29 +119,22 @@ entries: []
     // 編集 API
     // ============================
 
-    /**
-     * 手持ちアイテムをホワイトリストに追加する。
-     * @return エラーメッセージ (成功なら null)
-     */
     fun addEntry(item: ItemStack, sellPrice: Double): String? {
         if (item.type.isAir) return "AIR はホワイトリストに追加できません。"
         if (sellPrice <= 0)  return "売値は 1 以上で指定してください。"
 
         val normalized = normalizeForComparison(item)
 
-        // 重複チェック
         val alreadyExists = entries.any { entry ->
             runCatching {
                 val bytes = Base64.getDecoder().decode(entry.itemDataB64)
                 matchesComponents(normalizeForComparison(ItemStack.deserializeBytes(bytes)), normalized)
             }.getOrElse { false }
         }
-        if (alreadyExists) return "同じデータコンポーネントのアイテムは既に登録済みです。"
+        if (alreadyExists) return "同じコンポーネントのアイテムは既に登録済みです。"
 
-        val meta = item.itemMeta
-        val displayName = if (meta != null && meta.hasDisplayName())
-            plain.serialize(meta.displayName()!!)
-        else item.type.name.lowercase()
+        val meta        = item.itemMeta
+        val displayName = resolveDisplayName(item, meta)
 
         val itemDataB64 = runCatching {
             Base64.getEncoder().encodeToString(normalized.serializeAsBytes())
@@ -139,10 +154,6 @@ entries: []
         return null
     }
 
-    /**
-     * 指定インデックス (1-indexed) のエントリを削除する。
-     * @return 削除したエントリの表示名 (失敗なら null)
-     */
     fun removeEntry(index: Int): String? {
         val zeroIdx = index - 1
         if (zeroIdx !in entries.indices) return null
@@ -173,28 +184,46 @@ entries: []
     }
 
     // ============================
-    // データコンポーネント比較
+    // コンポーネント比較 (厳密化)
     // ============================
 
-    /** 耐久値リセット・個数1・loreクリアした比較用コピーを返す */
+    /**
+     * 比較用正規化: 耐久値0・個数1・loreクリア
+     * ただしカスタム名・エンチャント・本コンテンツは保持する
+     */
     private fun normalizeForComparison(item: ItemStack): ItemStack {
         val copy = item.clone()
         copy.amount = 1
         val meta = copy.itemMeta ?: return copy
         if (meta is Damageable) meta.damage = 0
+        // lore は比較しない (説明文は同一性に影響させない)
         meta.lore(emptyList())
         copy.itemMeta = meta
         return copy
     }
 
     /**
-     * type / custom_name / enchantments / stored_enchantments が一致するか比較する。
-     * normalizeForComparison() を通したアイテムを渡すこと。
+     * 厳密なコンポーネント比較。
+     *
+     * 比較対象:
+     *   - マテリアルタイプ
+     *   - カスタム名 (displayName)
+     *   - エンチャント (種類とレベル)
+     *   - stored_enchantments (エンチャント本)
+     *   - book title + author (記入済みの本)
+     *   - カスタムモデルデータ
+     *
+     * 比較しない:
+     *   - 耐久値 (damage): 使用済みでも売れるよう無視
+     *   - lore: 説明文の違いは同一性に影響しない
+     *   - 個数
      */
     private fun matchesComponents(a: ItemStack, b: ItemStack): Boolean {
         if (a.type != b.type) return false
+
         val ameta = a.itemMeta
         val bmeta = b.itemMeta
+
         if (ameta == null && bmeta == null) return true
         if (ameta == null || bmeta == null) return false
 
@@ -202,14 +231,14 @@ entries: []
         val aHasName = ameta.hasDisplayName()
         val bHasName = bmeta.hasDisplayName()
         if (aHasName != bHasName) return false
-        if (aHasName) {
+        if (aHasName && bHasName) {
             if (plain.serialize(ameta.displayName()!!) != plain.serialize(bmeta.displayName()!!)) return false
         }
 
         // エンチャント
         if (ameta.enchants != bmeta.enchants) return false
 
-        // stored enchantments (エンチャント本)
+        // Stored enchantments (エンチャント本)
         val aStored = ameta as? EnchantmentStorageMeta
         val bStored = bmeta as? EnchantmentStorageMeta
         if ((aStored == null) != (bStored == null)) return false
@@ -217,7 +246,48 @@ entries: []
             if (aStored.storedEnchants != bStored.storedEnchants) return false
         }
 
+        // ★ 本のコンテンツ比較 (WRITTEN_BOOK / WRITABLE_BOOK)
+        val aBook = ameta as? BookMeta
+        val bBook = bmeta as? BookMeta
+        if ((aBook == null) != (bBook == null)) return false
+        if (aBook != null && bBook != null) {
+            val aTitle = if (aBook.hasTitle()) aBook.title?.trim() else null
+            val bTitle = if (bBook.hasTitle()) bBook.title?.trim() else null
+            if (aTitle != bTitle) return false
+            val aAuthor = if (aBook.hasAuthor()) aBook.author?.trim() else null
+            val bAuthor = if (bBook.hasAuthor()) bBook.author?.trim() else null
+            if (aAuthor != bAuthor) return false
+            // ページ数も比較 (内容が全く同じ本のみ一致)
+            if (aBook.pageCount != bBook.pageCount) return false
+        }
+
+        // ★ カスタムモデルデータ
+        val aCmd = if (ameta.hasCustomModelData()) ameta.customModelData else -1
+        val bCmd = if (bmeta.hasCustomModelData()) bmeta.customModelData else -1
+        if (aCmd != bCmd) return false
+
+        // ★ ポーション効果 (ポーション系)
+        val aPotion = ameta as? PotionMeta
+        val bPotion = bmeta as? PotionMeta
+        if ((aPotion == null) != (bPotion == null)) return false
+        if (aPotion != null && bPotion != null) {
+            if (aPotion.basePotionType != bPotion.basePotionType) return false
+            if (aPotion.customEffects != bPotion.customEffects) return false
+        }
+
         return true
+    }
+
+    // ============================
+    // ユーティリティ
+    // ============================
+
+    /** アイテムの表示名を取得する (BookMeta の title も考慮) */
+    private fun resolveDisplayName(item: ItemStack, meta: org.bukkit.inventory.meta.ItemMeta?): String {
+        if (meta == null) return item.type.name.lowercase()
+        if (meta.hasDisplayName()) return plain.serialize(meta.displayName()!!)
+        if (meta is BookMeta && meta.hasTitle()) return meta.title ?: item.type.name.lowercase()
+        return item.type.name.lowercase()
     }
 
     private fun generateUniqueId(baseId: String, existing: Set<String>): String {

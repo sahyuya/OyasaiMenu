@@ -9,29 +9,25 @@ import java.util.UUID
 /**
  * SharedMacroManager
  *
- * マクロの共有機能を管理する。
- *
  * ■ 共有フロー
- *   1. /macro share <macroId> または GUI の「共有」ボタン
- *      → ランダムな8文字IDを生成し shared-macros/<shareId>.yml に保存
- *      → 共有IDをチャットに表示 (クリックでコピー)
+ *   1. publishMacro() → shared-macros/<shareId>.yml に保存し共有IDを返す
+ *   2. importMacro()  → 共有IDから取り込む
  *
- *   2. /macro import <shareId>
- *      → shared-macros/<shareId>.yml を読み込み
- *      → プレイヤーの自分のマクロとして追加
- *      → IDは "<mcid>_<元マクロ名>" 形式で生成
+ * ■ 再確認機能
+ *   - findSharesByAuthor()   → 自分が共有したマクロを全件返す
+ *   - findSharesForMacro()   → 特定マクロ名に紐づく自分の共有IDを返す
+ *   これにより「/macro shares」や詳細画面の「共有コード確認」ボタンが実現できる
  *
  * ■ ファイル構造
- *   plugins/OyasaiMenu/shared-macros/<shareId>.yml
- *     share_id: "abc12345"
- *     macro_name: "ホーム設定"
+ *   shared-macros/<shareId>.yml
+ *     share_id:    "abc12345"
+ *     macro_name:  "ホーム設定"
  *     description: "作者: sahyuya"
- *     author: "sahyuya"
+ *     author:      "sahyuya"
  *     author_uuid: "<uuid>"
- *     created_at: 1234567890
+ *     created_at:  1234567890
  *     commands:
- *       - "sethome"
- *       - "home"
+ *       - "warp home"
  */
 class SharedMacroManager(private val plugin: OyasaiMenu) {
 
@@ -110,15 +106,53 @@ class SharedMacroManager(private val plugin: OyasaiMenu) {
     }
 
     // ============================
+    // 再確認 (re-check)
+    // ============================
+
+    /**
+     * 指定プレイヤーが共有したマクロを全件返す。
+     * 新しい順 (createdAt 降順) にソート。
+     */
+    fun findSharesByAuthor(authorUUID: UUID): List<SharedMacro> {
+        val uuidStr = authorUUID.toString()
+        return shareDir.listFiles()
+            ?.filter { it.extension == "yml" }
+            ?.mapNotNull { file ->
+                runCatching {
+                    val yaml = YamlConfiguration.loadConfiguration(file)
+                    if (yaml.getString("author_uuid") != uuidStr) return@mapNotNull null
+                    SharedMacro(
+                        shareId     = yaml.getString("share_id", file.nameWithoutExtension) ?: file.nameWithoutExtension,
+                        macroName   = yaml.getString("macro_name", "無名マクロ") ?: "無名マクロ",
+                        description = yaml.getString("description", "") ?: "",
+                        author      = yaml.getString("author", "") ?: "",
+                        authorUUID  = uuidStr,
+                        createdAt   = yaml.getLong("created_at", 0L),
+                        commands    = yaml.getStringList("commands")
+                    )
+                }.getOrNull()
+            }
+            ?.sortedByDescending { it.createdAt }
+            ?: emptyList()
+    }
+
+    /**
+     * 指定プレイヤーが共有した中で、マクロ名が一致するものを返す。
+     * 同一マクロを複数回共有している場合は全て返す (新しい順)。
+     */
+    fun findSharesForMacro(authorUUID: UUID, macroName: String): List<SharedMacro> =
+        findSharesByAuthor(authorUUID).filter { it.macroName == macroName }
+
+    // ============================
     // ID 生成
     // ============================
 
+    /** 衝突しないランダム8文字の共有IDを生成する (a-z0-9) */
     private fun generateShareId(): String {
         val chars = "abcdefghijklmnopqrstuvwxyz0123456789"
         var id: String
-        do {
-            id = (1..8).map { chars.random() }.joinToString("")
-        } while (File(shareDir, "$id.yml").exists())
+        do { id = (1..8).map { chars.random() }.joinToString("") }
+        while (File(shareDir, "$id.yml").exists())
         return id
     }
 }

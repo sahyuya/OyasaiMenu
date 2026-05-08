@@ -10,20 +10,17 @@ import java.io.File
  * PopupMenuLoader
  *
  * 変更点:
- *   - op_only: true → PopupItem.opOnly = true
- *   - op_player_cmd / op_console_cmd アクション対応
- *   - suggest_command アクション対応
+ *   - fallback_icon / fallback_name: op_only=true の非OP向け表示を指定可能
+ *   - op_only / op_player_cmd / op_console_cmd / suggest_command 対応
  *   - icon: AIR / CUSTOM_HEAD 対応
  *
- * YAML 例 (op専用アイテム):
- *   staff_ch:
+ * YAML 例:
+ *   staff_channel:
  *     slot: 1
  *     icon: COMMAND_BLOCK
- *     name: "&4[OP] スタッフチャンネル"
  *     op_only: true
- *     actions:
- *       - {op_player_cmd: "ch st"}
- *       - {close: true}
+ *     fallback_icon: GRAY_STAINED_GLASS_PANE  # 非OPに表示するアイコン
+ *     fallback_name: " "                       # 非OPに表示する名前 (省略可)
  */
 class PopupMenuLoader(private val plugin: OyasaiMenu) {
 
@@ -88,10 +85,18 @@ class PopupMenuLoader(private val plugin: OyasaiMenu) {
                 else -> runCatching { Material.valueOf(iconName) }.getOrDefault(Material.STONE)
             }
 
-            val enchanted = sec.getBoolean("enchanted", false)
-            val name      = sec.getString("name", "") ?: ""
-            val lore      = sec.getStringList("lore")
-            val opOnly    = sec.getBoolean("op_only", false)   // ★
+            val enchanted    = sec.getBoolean("enchanted", false)
+            val name         = sec.getString("name", "") ?: ""
+            val lore         = sec.getStringList("lore")
+            val opOnly       = sec.getBoolean("op_only", false)
+
+            val fallbackIconName = sec.getString("fallback_icon")?.uppercase()
+            val fallbackIcon: Material? = fallbackIconName?.let {
+                runCatching { Material.valueOf(it) }.getOrElse {
+                    plugin.logger.warning("Popup $id '$key': 不明な fallback_icon '$it'"); null
+                }
+            }
+            val fallbackName = sec.getString("fallback_name", " ") ?: " "
 
             val actions = mutableListOf<PopupAction>()
             @Suppress("UNCHECKED_CAST")
@@ -100,15 +105,17 @@ class PopupMenuLoader(private val plugin: OyasaiMenu) {
                 .forEach { parseAction(it)?.let { a -> actions.add(a) } }
 
             items.add(PopupItem(
-                key           = key,
-                slot          = slot,
-                icon          = icon,
+                key          = key,
+                slot         = slot,
+                icon         = icon,
                 customTexture = texture,
-                name          = name,
-                lore          = lore,
-                enchanted     = enchanted,
-                actions       = actions,
-                opOnly        = opOnly
+                name         = name,
+                lore         = lore,
+                enchanted    = enchanted,
+                actions      = actions,
+                opOnly       = opOnly,
+                fallbackIcon = fallbackIcon,
+                fallbackName = fallbackName
             ))
         }
 

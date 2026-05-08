@@ -25,8 +25,8 @@ templates:
       - "gamerule playersNetherPortalDefaultDelay 100000000"
       - "gamerule playersNetherPortalCreativeDelay 100000000"
 
-  timeday:
-    name: "昼にセット"
+  dayclear:
+    name: "快晴"
     cooldown: 3
     commands:
       - "time set day"
@@ -37,9 +37,3 @@ templates:
     cooldown: 10
     commands:
       - "kill @e[type=!player,type=!armor_stand,type=!item_frame]"
-
-  staffmode:
-    name: "スタッフチャンネル切替"
-    cooldown: 3
-    commands:
-      - "ch st"

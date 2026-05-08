@@ -12,9 +12,19 @@ import java.util.UUID
 /**
  * MacroManager
  *
- * 変更点:
- *   - distributeOpTemplates(player): OPログイン時にテンプレートマクロを配布
- *     op-macro-templates.yml で定義、IDは "_op_<key>" 形式
+ * ■ スラッシュの扱い
+ *   保存時: ユーザーが入力した内容をそのまま保存 (スラッシュを除去しない)
+ *   実行時: performCommand() の前に先頭スラッシュを1つだけ除去する
+ *     → `warp home`   → performCommand("warp home")   → /warp home
+ *     → `/warp home`  → performCommand("warp home")   → /warp home
+ *     → `//wand`      → performCommand("/wand")        → //wand (FAWE)
+ *
+ * ■ リソースファイル
+ *   op-macro-templates.yml は JAR 内リソースから saveResource() で展開する。
+ *   コード内にデフォルト内容を書かない。
+ *
+ * ■ 権限別マクロ最大数
+ *   config.yml の macro.max-per-permission で権限ごとに設定可能。
  */
 class MacroManager(private val plugin: OyasaiMenu) {
 
@@ -60,8 +70,7 @@ class MacroManager(private val plugin: OyasaiMenu) {
     }
 
     fun unloadPlayer(uuid: UUID) {
-        savePlayer(uuid)
-        cache.remove(uuid.toString())
+        savePlayer(uuid); cache.remove(uuid.toString())
         cooldowns.keys.removeIf { it.startsWith("$uuid:") }
     }
 
@@ -73,44 +82,61 @@ class MacroManager(private val plugin: OyasaiMenu) {
     }
 
     // ============================
+    // 権限別マクロ最大数
+    // ============================
+
+    /**
+     * プレイヤーの権限に応じたマクロ最大数を返す。
+     * 複数権限を持つ場合は最大値を採用する。
+     */
+    fun getMaxMacros(player: Player): Int {
+        val default     = plugin.config.getInt("macro.max-per-player", 10)
+        val permSection = plugin.config.getConfigurationSection("macro.max-per-permission")
+            ?: return default
+
+        return permSection.getKeys(false)
+            .filter { player.hasPermission(it) }
+            .mapNotNull { permSection.getInt(it, 0).takeIf { v -> v > 0 } }
+            .maxOrNull() ?: default
+    }
+
+    // ============================
     // CRUD
     // ============================
 
-    fun getMacros(uuid: UUID): List<PlayerMacro> = cache[uuid.toString()]?.toList() ?: emptyList()
+    fun getMacros(uuid: UUID): List<PlayerMacro>   = cache[uuid.toString()]?.toList() ?: emptyList()
     fun getMacro(uuid: UUID, id: String): PlayerMacro? = cache[uuid.toString()]?.find { it.id == id }
 
-    fun addMacro(uuid: UUID, macro: PlayerMacro): String? {
+    /**
+     * @param maxOverride null の場合は config のデフォルト値を使用
+     */
+    fun addMacro(uuid: UUID, macro: PlayerMacro, maxOverride: Int? = null): String? {
         val list = cache.getOrPut(uuid.toString()) { mutableListOf() }
-        val max  = plugin.config.getInt("macro.max-per-player", 10)
+        val max  = maxOverride ?: plugin.config.getInt("macro.max-per-player", 10)
         if (list.size >= max) return "マクロの上限数 ($max) に達しています。"
         if (list.any { it.id == macro.id }) return "ID '${macro.id}' は既に存在します。"
         validateCommands(macro.commands)?.let { return it }
-        list.add(macro)
-        savePlayer(uuid)
-        return null
+        list.add(macro); savePlayer(uuid); return null
     }
 
     fun updateMacro(uuid: UUID, updated: PlayerMacro): String? {
         val list = cache[uuid.toString()] ?: return "データ未ロード。"
         val idx  = list.indexOfFirst { it.id == updated.id }
         if (idx < 0) return "ID '${updated.id}' が見つかりません。"
-        list[idx] = updated
-        savePlayer(uuid)
-        return null
+        list[idx] = updated; savePlayer(uuid); return null
     }
 
     fun removeMacro(uuid: UUID, macroId: String): Boolean {
         val removed = cache[uuid.toString()]?.removeIf { it.id == macroId } ?: false
-        if (removed) savePlayer(uuid)
-        return removed
+        if (removed) savePlayer(uuid); return removed
     }
 
     fun setCommandAtIndex(uuid: UUID, macroId: String, index: Int, value: String): String? {
         val macro = getMacro(uuid, macroId) ?: return "マクロ '$macroId' が見つかりません。"
         validateCommands(listOf(value))?.let { return it }
-        val normalized = if (isWaitCommand(value)) value.trim() else value.trim().removePrefix("/")
+        val cmd = if (isWaitCommand(value)) value.trim() else value.trim()
         val commands = macro.commands.toMutableList()
-        if (index >= commands.size) commands.add(normalized) else commands[index] = normalized
+        if (index >= commands.size) commands.add(cmd) else commands[index] = cmd
         return updateMacro(uuid, macro.copy(commands = commands))
     }
 
@@ -129,28 +155,29 @@ class MacroManager(private val plugin: OyasaiMenu) {
 
     /**
      * OPプレイヤーにテンプレートマクロを配布する。
-     * op-macro-templates.yml に定義されたマクロを、まだ持っていない場合のみ追加する。
-     * テンプレートIDは "_op_<key>" 形式。
+     * op-macro-templates.yml は JAR リソースから saveResource() で展開する。
+     * 既に同じIDのマクロを持っているプレイヤーには再配布しない。
      */
     fun distributeOpTemplates(player: Player) {
         if (!player.isOp) return
 
-        val templateFile = File(plugin.dataFolder, "op-macro-templates.yml").also {
-            if (!it.exists()) createDefaultOpTemplates(it)
+        val templateFile = File(plugin.dataFolder, "op-macro-templates.yml")
+        if (!templateFile.exists()) {
+            runCatching { plugin.saveResource("op-macro-templates.yml", false) }
+                .onFailure { plugin.logger.warning("op-macro-templates.yml の展開失敗: ${it.message}"); return }
         }
+        if (!templateFile.exists()) return
 
         val yaml         = YamlConfiguration.loadConfiguration(templateFile)
         val templatesSec = yaml.getConfigurationSection("templates") ?: return
+        var added        = 0
 
-        var added = 0
         templatesSec.getKeys(false).forEach { templateId ->
             val sec      = templatesSec.getConfigurationSection(templateId) ?: return@forEach
             val name     = sec.getString("name", templateId) ?: templateId
             val commands = sec.getStringList("commands")
             val cooldown = sec.getInt("cooldown", plugin.config.getInt("macro.cooldown-seconds", 3))
             val macroId  = "_op_$templateId"
-
-            // 既に持っている場合はスキップ
             if (getMacro(player.uniqueId, macroId) != null) return@forEach
 
             val list = cache.getOrPut(player.uniqueId.toString()) { mutableListOf() }
@@ -166,62 +193,10 @@ class MacroManager(private val plugin: OyasaiMenu) {
 
         if (added > 0) {
             savePlayer(player.uniqueId)
-            // 1秒後に通知 (ログイン直後の他メッセージに埋もれないよう遅延)
             Bukkit.getScheduler().runTaskLater(plugin, Runnable {
                 player.sendMessage(c("&b[OyasaiMenu] &a${added}個のOPマクロテンプレートを追加しました。(&e/macro &aで確認)"))
             }, 20L)
         }
-    }
-
-    private fun createDefaultOpTemplates(file: File) {
-        file.parentFile.mkdirs()
-        file.writeText("""# op-macro-templates.yml
-#
-# OPプレイヤーがログインした際に自動配布されるマクロテンプレートを定義します。
-# マクロIDは "_op_<キー名>" 形式で付与されます (例: _op_worldsettings)。
-# 既に同じIDのマクロを持っているプレイヤーには再配布しません。
-#
-# commands フォーマット:
-#   - コマンド文字列 (先頭スラッシュなし)
-#   - "wait 1s" / "wait 0.5s" でウェイト挿入可
-#
-# このファイルを編集後は /om reload でリロードできます。
-# ただし再配布は既にIDがないプレイヤーのみです。
-
-templates:
-
-  worldsettings:
-    name: "ワールド設定"
-    cooldown: 5
-    commands:
-      - "gamerule doDaylightCycle false"
-      - "gamerule doWeatherCycle false"
-      - "gamerule doMobSpawning false"
-      - "gamerule randomTickSpeed 0"
-      - "rg flag __global__ coral-fade deny"
-      - "gamerule playersNetherPortalDefaultDelay 100000000"
-      - "gamerule playersNetherPortalCreativeDelay 100000000"
-
-  timeday:
-    name: "昼にセット"
-    cooldown: 3
-    commands:
-      - "time set day"
-      - "weather clear"
-
-  clearlag:
-    name: "エンティティクリア"
-    cooldown: 10
-    commands:
-      - "kill @e[type=!player,type=!armor_stand,type=!item_frame]"
-
-  staffmode:
-    name: "スタッフチャンネル切替"
-    cooldown: 3
-    commands:
-      - "ch st"
-""", Charsets.UTF_8)
-        plugin.logger.info("op-macro-templates.yml をデフォルト内容で作成しました。")
     }
 
     // ============================
@@ -242,6 +217,15 @@ templates:
         return null
     }
 
+    /**
+     * コマンドを順に実行する。
+     *
+     * ■ スラッシュの扱い (実行時)
+     *   performCommand() に渡す前に先頭スラッシュを1つだけ除去する。
+     *     `warp home`  → performCommand("warp home")  → /warp home
+     *     `/warp home` → performCommand("warp home")  → /warp home
+     *     `//wand`     → performCommand("/wand")       → //wand (FAWE)
+     */
     private fun executeCommandsFrom(player: Player, commands: List<String>, index: Int) {
         if (index >= commands.size) return
         val cmd = commands[index].trim()
@@ -253,7 +237,8 @@ templates:
                 executeCommandsFrom(player, commands, index + 1)
             }, delayTick)
         } else {
-            player.performCommand(cmd)
+            val execCmd = if (cmd.startsWith("/")) cmd.removePrefix("/") else cmd
+            player.performCommand(execCmd)
             executeCommandsFrom(player, commands, index + 1)
         }
     }
@@ -265,21 +250,16 @@ templates:
     private fun validateCommands(commands: List<String>): String? {
         val whitelist = plugin.config.getStringList("macro.command-whitelist")
         if (whitelist.isEmpty()) return null
-        val blocked = commands
-            .filter { !isWaitCommand(it) }
-            .filter { cmd ->
-                val base = cmd.removePrefix("/").removePrefix("/").split(" ").first()
-                whitelist.none { it.equals(base, ignoreCase = true) }
-            }
+        val blocked = commands.filter { !isWaitCommand(it) }.filter { cmd ->
+            // 先頭スラッシュを除去してコマンド名を抽出
+            val base = cmd.removePrefix("/").removePrefix("/").split(" ").first()
+            whitelist.none { it.equals(base, ignoreCase = true) }
+        }
         if (blocked.isNotEmpty()) return "許可されていないコマンド: ${blocked.joinToString()}"
         return null
     }
 
     fun isWaitCommand(cmd: String) = waitRegex.matches(cmd.trim())
-
-    // ============================
-    // ユーティリティ
-    // ============================
 
     private fun playerFile(uuid: UUID) = File(dataDir, "$uuid.yml")
 }

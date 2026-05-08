@@ -1,4 +1,6 @@
 # チャンネルメニュー
+# op_only: true のアイテムはOPのみ表示される
+# fallback_icon: 非OPに表示するアイコン (省略するとガラスで埋まる)
 title: "&cチャンネルメニュー"
 glass: RED_STAINED_GLASS_PANE
 nav_active: 46
@@ -29,7 +31,7 @@ items:
       - ""
       - "&eクリックで参加"
     actions:
-      - {player_cmd: "leave 2"}
+      - {player_cmd: "leave Global"}
       - {player_cmd: "leave 3"}
       - {player_cmd: "join 2"}
       - {console_cmd: 'tellraw %player% [{"bold":true,"color":"aqua","text":"チャンネル2"}]'}
@@ -45,8 +47,8 @@ items:
       - ""
       - "&eクリックで参加"
     actions:
+      - {player_cmd: "leave Global"}
       - {player_cmd: "leave 2"}
-      - {player_cmd: "leave 3"}
       - {player_cmd: "join 3"}
       - {console_cmd: 'tellraw %player% [{"bold":true,"color":"blue","text":"チャンネル3"}]'}
       - {player_cmd: "chwho 3"}
@@ -64,7 +66,6 @@ items:
       - {player_cmd: "chwho Global"}
       - {player_cmd: "chwho 2"}
       - {player_cmd: "chwho 3"}
-      - {console_cmd: 'tellraw %player% [{"bold":true,"color":"yellow","text":"---------------------------------------------\n"},{"bold":true,"color":"gray","text":"チャットルームの切り替え:\n"},{"color":"yellow","text":"/menuを開いてチャンネルメニューのパネルから選択\n"}]'}
       - {close: true}
 
   staff_channel:
@@ -72,15 +73,12 @@ items:
     icon: COMMAND_BLOCK
     name: "&4[OP] スタッフチャンネル"
     op_only: true
+    fallback_icon: AIR
+    fallback_name: " "
     lore:
-      - "&cスタッフ専用チャンネルです"
-      - "&cOPのみ表示されます"
+      - "&cスタッフチャンネルに遷移します"
       - ""
       - "&eクリックで参加"
     actions:
       - {op_player_cmd: "ch st"}
       - {close: true}
-
-  empty:
-    slot: 1
-    icon: AIR

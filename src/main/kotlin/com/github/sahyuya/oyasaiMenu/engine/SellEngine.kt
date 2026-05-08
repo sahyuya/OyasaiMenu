@@ -20,8 +20,9 @@ import org.bukkit.inventory.ItemStack
  * SellEngine
  *
  * ■ 売却ロジック
- *   バニラ名 (hasDisplayName() == false) かつショップ登録済み → ショップ売値
- *   カスタム名あり → SellWhitelistManager でデータコンポーネント一致のみ売却可
+ *   SellWhitelistManager.hasCustomContent() でカスタム判定:
+ *     false → ショップ売値 (バニラ名・マテリアル一致)
+ *     true  → ホワイトリスト厳密照合 (displayName / BookMeta / CustomModelData 等)
  */
 class SellEngine(private val plugin: OyasaiMenu) : Listener {
 
@@ -45,8 +46,8 @@ class SellEngine(private val plugin: OyasaiMenu) : Listener {
 
     fun getSellPrice(item: ItemStack): Double? {
         if (item.type.isAir) return null
-        val hasCustomName = item.itemMeta?.hasDisplayName() == true
-        return if (!hasCustomName) {
+        val isCustom = plugin.sellWhitelistManager.hasCustomContent(item)
+        return if (!isCustom) {
             plugin.shopLoader.getSellPrice(item.type)
         } else {
             plugin.sellWhitelistManager.getPrice(item)
@@ -77,7 +78,7 @@ class SellEngine(private val plugin: OyasaiMenu) : Listener {
         inv.setItem(49, makeItem(Material.LIME_CONCRETE, "&a▶ 売却実行",
             listOf(
                 "&7バニラ名: ショップ登録価格で売却",
-                "&7カスタム名: ホワイトリスト登録のみ売却可",
+                "&7カスタム名・特殊アイテム: ホワイトリスト登録のみ売却可",
                 "&7売却不可アイテムはインベントリへ返却"
             )))
     }
@@ -101,7 +102,7 @@ class SellEngine(private val plugin: OyasaiMenu) : Listener {
                 if (emptySlot != null) {
                     inv.setItem(emptySlot, item)
                     if (event.currentItem!!.amount == item.amount) player.inventory.setItem(event.slot, null)
-                    Bukkit.getScheduler().runTaskLater(plugin, Runnable { updateResult(player, inv, null) }, 1L)
+                    Bukkit.getScheduler().runTaskLater(plugin, Runnable { buildControlBar(inv, null) }, 1L)
                 } else {
                     player.sendMessage(c("&c投入エリアがいっぱいです。"))
                 }
@@ -138,7 +139,7 @@ class SellEngine(private val plugin: OyasaiMenu) : Listener {
     // ============================
 
     private fun handleSell(player: Player) {
-        val inv = player.openInventory.topInventory
+        val inv   = player.openInventory.topInventory
         val items = getInputItems(inv)
         if (items.isEmpty()) { player.sendMessage(c("&c売却できるアイテムがありません。")); return }
 
@@ -149,9 +150,7 @@ class SellEngine(private val plugin: OyasaiMenu) : Listener {
         items.forEach { (slot, stack) ->
             val price = getSellPrice(stack)
             if (price != null && price > 0) {
-                earned += price * stack.amount
-                count  += stack.amount
-                inv.setItem(slot, null)
+                earned += price * stack.amount; count += stack.amount; inv.setItem(slot, null)
             } else {
                 unsellable++
             }
@@ -165,17 +164,11 @@ class SellEngine(private val plugin: OyasaiMenu) : Listener {
 
         EconomyManager.deposit(player, earned)
         val suffix = if (unsellable > 0) " &7(不可 ${unsellable}種はGUIに残ります)" else ""
-        updateResult(player, inv, "&f${count}個 → &a+${EconomyManager.format(earned)}$suffix")
-        player.sendMessage(c(
-            "&a一括売却完了! &f${count}個 &7→ &f+${EconomyManager.format(earned)}\n" +
-            "&7残高: &f${EconomyManager.format(EconomyManager.getBalance(player))}"
-        ))
-        if (unsellable > 0)
-            player.sendMessage(c("&7売却不可アイテム (${unsellable}種) はGUIに残っています。閉じると返却されます。"))
+        buildControlBar(inv, "&f${count}個 → &a+${EconomyManager.format(earned)}$suffix")
+        player.sendMessage(c("&a一括売却完了! &f${count}個 &7→ &f+${EconomyManager.format(earned)}\n&7残高: &f${EconomyManager.format(EconomyManager.getBalance(player))}"))
+        if (unsellable > 0) player.sendMessage(c("&7売却不可アイテム (${unsellable}種) はGUIに残っています。閉じると返却されます。"))
         player.playSound(player.location, org.bukkit.Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f)
     }
-
-    private fun updateResult(player: Player, inv: Inventory, result: String?) = buildControlBar(inv, result)
 
     // ============================
     // ユーティリティ

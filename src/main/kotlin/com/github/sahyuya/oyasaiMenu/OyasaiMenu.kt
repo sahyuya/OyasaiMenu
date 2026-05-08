@@ -67,14 +67,14 @@ class OyasaiMenu : JavaPlugin(), Listener {
 
         lifecycleManager.registerEventHandler(LifecycleEvents.COMMANDS) { event ->
             val reg = event.registrar()
-            reg.register("menu",       "メニューを開く",                listOf("m"),       MenuCommand(this))
+            reg.register("menu",       "メニューを開く",                listOf("mn"),       MenuCommand(this))
             reg.register("menuedit",   "メニューを管理する",             emptyList(),       MenuAdminCommand(this))
             reg.register("shop",       "ショップを開く",                 listOf("sh"),      ShopCommand(this))
             reg.register("sell",       "アイテムを売却する",             emptyList(),       SellCommand(this))
-            reg.register("pshop",      "ポイントショップを開く",          listOf("ps"),      PointShopCommand(this))
-            reg.register("macro",      "コマンドマクロを管理・実行する",  emptyList(),       MacroCommand(this))
+            reg.register("pointshop",      "ポイントショップを開く",          listOf("ps"),      PointShopCommand(this))
+            reg.register("macro",      "コマンドマクロを管理・実行する",  listOf("mc"),       MacroCommand(this))
             reg.register("adminmenu",  "管理者メニューを開く",            listOf("admenu"),  AdminMenuCommand(this))
-            reg.register("oyasaimenu", "OyasaiMenu 管理コマンド",         listOf("om"),      OyasaiMenuCommand(this))
+            reg.register("oyasaimenu", "OyasaiMenu 管理コマンド",         emptyList(),      OyasaiMenuCommand(this))
         }
 
         listOf(

@@ -20,9 +20,6 @@ import org.bukkit.inventory.ItemStack
  *
  * check_permission のような条件分岐アクションは、
  * 結果に応じて success/fail リストを再帰的に実行する。
- *
- * 非同期が必要な処理 (discord_fetch など) は Bukkit スケジューラで
- * 別スレッドへ切り出し、完了後にメインスレッドで結果を適用する。
  */
 class ActionEngine(private val plugin: OyasaiMenu) {
 
@@ -102,11 +99,6 @@ class ActionEngine(private val plugin: OyasaiMenu) {
 
             ActionType.BROADCAST -> {
                 Bukkit.broadcastMessage(c(applyPlaceholders(player, action.getString("text"))))
-            }
-
-            ActionType.DISCORD_FETCH -> {
-                val channel = action.getString("channel", "general")
-                fetchDiscordMessages(player, channel, action)
             }
 
             ActionType.PLACEHOLDER_TEXT -> {
@@ -192,81 +184,6 @@ class ActionEngine(private val plugin: OyasaiMenu) {
             val user = lp.userManager.getUser(player.uniqueId) ?: return player.hasPermission(permission)
             user.cachedData.permissionData.checkPermission(permission).asBoolean()
         }.getOrElse { player.hasPermission(permission) }
-    }
-
-    // ============================
-    // Discord 非同期フェッチ
-    // ============================
-
-    private fun fetchDiscordMessages(player: Player, channel: String, action: MenuAction) {
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, Runnable {
-            val messages = runCatching {
-                // DiscordSRV が有効な場合にリフレクション経由でフックする。
-                // 直接 import しないことで DiscordSRV 未導入環境でもクラスロードエラーを防ぐ。
-                Class.forName("github.scarsz.discordsrv.DiscordSRV")
-                listOf("(DiscordSRV 連携: 実装中)")
-            }.getOrElse { listOf("&7Discord 連携には DiscordSRV が必要です。") }
-
-            Bukkit.getScheduler().runTask(plugin, Runnable {
-                val format = action.getString("format", "&7%message%")
-                messages.forEach { msg ->
-                    player.sendMessage(c(format.replace("%message%", msg)))
-                }
-            })
-        })
-    }
-
-    // ============================
-    // インゲームアイテム詳細編集
-    // ============================
-
-    /**
-     * 編集モードで特定スロットのアイテム詳細編集 GUI を開く。
-     * 設計書の "詳細編集GUI（アイテム設定）" に対応するタブ構造の骨格実装。
-     * タブ: 基本 / アクション / 条件 / 表示 / 高度
-     */
-    fun openItemEditor(player: Player, menuId: String, slot: Int) {
-        val menuDef = plugin.menuLoader.getMenu(menuId) ?: return
-        val itemDef = menuDef.items.values.find { it.slot == slot }
-
-        val inv = Bukkit.createInventory(null, 54,
-            comp("&8アイテム編集: スロット $slot"))
-
-        // タブ行 (0〜4)
-        listOf(
-            Triple(0, org.bukkit.Material.IRON_SWORD,    "&a基本"),
-            Triple(1, org.bukkit.Material.COMMAND_BLOCK, "&bアクション"),
-            Triple(2, org.bukkit.Material.COMPARATOR,    "&e条件"),
-            Triple(3, org.bukkit.Material.NAME_TAG,      "&d表示"),
-            Triple(4, org.bukkit.Material.REDSTONE,      "&c高度")
-        ).forEach { (s, m, n) -> inv.setItem(s, makeGuiItem(m, n)) }
-
-        // プレビューアイテムを中央に表示
-        if (itemDef != null) inv.setItem(13, buildPreview(itemDef))
-
-        // 保存 / キャンセル
-        inv.setItem(45, makeGuiItem(org.bukkit.Material.EMERALD, "&a保存して閉じる"))
-        inv.setItem(53, makeGuiItem(org.bukkit.Material.BARRIER,  "&cキャンセル"))
-
-        player.openInventory(inv)
-        player.sendMessage(c("&7詳細編集 GUI (タブ機能は開発中)"))
-    }
-
-    private fun makeGuiItem(mat: org.bukkit.Material, name: String): ItemStack {
-        val item = ItemStack(mat)
-        val meta = item.itemMeta!!
-        meta.displayName(comp(name))
-        item.itemMeta = meta
-        return item
-    }
-
-    private fun buildPreview(itemDef: MenuItemDefinition): ItemStack {
-        val item = ItemStack(itemDef.icon)
-        val meta = item.itemMeta!!
-        meta.displayName(comp(itemDef.name.ifEmpty { "&7(名前なし)" }))
-        if (itemDef.lore.isNotEmpty()) meta.lore(itemDef.lore.map { comp(it) })
-        item.itemMeta = meta
-        return item
     }
 
     // ============================

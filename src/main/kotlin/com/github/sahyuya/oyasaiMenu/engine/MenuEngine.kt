@@ -61,7 +61,6 @@ class MenuEngine(private val plugin: OyasaiMenu) : Listener {
         event.isCancelled = true
         if (CooldownManager.isClickOnCooldown(player.uniqueId)) return
         val slot = event.rawSlot
-        if (state.isEditing) { handleEditClick(player, state, slot, event); return }
         if (state.menuId == "root" && slot in 45..53) {
             when (slot) {
                 45 -> { NavBar.apply(player.openInventory.topInventory, player, plugin, -1); player.playSound(player.location, org.bukkit.Sound.UI_BUTTON_CLICK, 0.5f, 1f) }
@@ -118,21 +117,6 @@ class MenuEngine(private val plugin: OyasaiMenu) : Listener {
         val lore = itemDef.lore.map { comp(applyPlaceholders(player, it)) }
         if (lore.isNotEmpty()) meta.lore(lore)
         item.itemMeta = meta; return item
-    }
-
-    private fun handleEditClick(player: Player, state: PlayerMenuState, slot: Int, event: InventoryClickEvent) {
-        when (slot) {
-            45 -> { player.closeInventory(); val parentId = state.menuId.substringBeforeLast("/","root"); if (parentId != state.menuId) openMenu(player, parentId) }
-            46 -> player.sendMessage(c("&a保存しました。(YAML書き出しは実装予定)"))
-            47 -> { player.closeInventory(); player.sendMessage(c("&e編集をキャンセルしました。")) }
-            48 -> openMenu(player, state.menuId)
-            50 -> player.sendMessage(c("&6空スロットをクリックしてアイテムを追加。(実装予定)"))
-            52 -> player.sendMessage(c("&4削除モード切替。(実装予定)"))
-            in 0..44 -> {
-                if (event.isRightClick) plugin.actionEngine.openItemEditor(player, state.menuId, slot)
-                else player.sendMessage(c("&7スロット $slot を選択。右クリックで詳細編集。"))
-            }
-        }
     }
 
     fun applyPlaceholders(player: Player, text: String): String {

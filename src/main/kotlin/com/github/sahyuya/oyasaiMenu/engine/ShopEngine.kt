@@ -71,10 +71,10 @@ class ShopEngine(private val plugin: OyasaiMenu) : Listener {
         listOf(46,47,51,52).forEach { inv.setItem(it, glass) }
         inv.setItem(45, makeItem(Material.ARROW, "&c← 戻る", listOf("&7ショップ一覧に戻ります")))
         val hasPrev = state.page > 0
-        inv.setItem(48, makeItem(if (hasPrev) Material.ARROW else Material.GRAY_STAINED_GLASS_PANE, if (hasPrev) "&e← 前のページ" else "&8前のページなし"))
+        inv.setItem(48, makeItem(if (hasPrev) Material.ARROW else Material.BLACK_STAINED_GLASS_PANE, if (hasPrev) "&e← 前のページ" else "&8前のページなし"))
         inv.setItem(49, makeItem(Material.BOOK, "&fページ &e${state.page+1} &7/ &e${category.pageCount}", listOf("&7全 ${category.items.size} 種 / このページ ${category.getPage(state.page).size} 種")))
         val hasNext = state.page < category.pageCount - 1
-        inv.setItem(50, makeItem(if (hasNext) Material.ARROW else Material.GRAY_STAINED_GLASS_PANE, if (hasNext) "&e次のページ →" else "&8次のページなし"))
+        inv.setItem(50, makeItem(if (hasNext) Material.ARROW else Material.BLACK_STAINED_GLASS_PANE, if (hasNext) "&e次のページ →" else "&8次のページなし"))
         val qty = state.quantity
         inv.setItem(53, makeItem(Material.GOLD_NUGGET, "${qty.label} &7でやりとり", listOf("&7クリックで切替:", "${mark(qty,ShopQuantity.ONE)} 1個","${mark(qty,ShopQuantity.FOUR)} 4個","${mark(qty,ShopQuantity.SIXTEEN)} 16個","${mark(qty,ShopQuantity.SIXTY_FOUR)} 64個")))
     }

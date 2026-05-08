@@ -11,7 +11,6 @@ import net.kyori.adventure.text.event.ClickEvent
 import net.kyori.adventure.text.event.HoverEvent
 import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.format.TextDecoration
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
 import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.NamespacedKey
@@ -29,10 +28,10 @@ import org.bukkit.inventory.ItemStack
  * PopupMenuEngine
  *
  * 変更点:
- *   - opOnly アイテム: isOp() == false のプレイヤーには表示しない (AIR と同じ扱い)
- *   - OP_PLAYER_CMD / OP_CONSOLE_CMD: isOp() == false の場合は実行しない
- *   - SUGGEST_COMMAND: ClickEvent.suggestCommand() でチャット欄に入力
+ *   - fallbackIcon: op_only=true の非OPプレイヤーに指定のアイコンを表示
+ *     fallback_icon 未指定なら fillGlass のガラスが埋める (従来通り)
  *   - AIR スロット: fillGlass 後にクリアして空欄を維持
+ *   - opOnly のクリックは非OP側で無視
  */
 class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
 
@@ -58,15 +57,28 @@ class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
         def.items.forEach { item ->
             if (item.slot !in 0..44) return@forEach
             if (item.icon.isAir) return@forEach
-            if (item.opOnly && !player.isOp) return@forEach
+
+            if (item.opOnly && !player.isOp) {
+                val fb = item.fallbackIcon
+                if (fb != null && !fb.isAir) {
+                    val fbStack = ItemStack(fb)
+                    val fbMeta  = fbStack.itemMeta!!
+                    fbMeta.displayName(comp(item.fallbackName))
+                    fbStack.itemMeta = fbMeta
+                    inv.setItem(item.slot, fbStack)
+                }
+                return@forEach
+            }
+
             inv.setItem(item.slot, buildItemStack(item))
         }
 
+        // 空きスロットをガラスで埋める
         NavBar.fillGlass(inv, def.glass)
 
-        def.items.filter { it.slot in 0..44 }.forEach { item ->
-            val shouldClear = item.icon.isAir || (item.opOnly && !player.isOp)
-            if (shouldClear) inv.setItem(item.slot, null)
+        // icon=AIR のスロットのみクリア (opOnly スロットはガラスのまま)
+        def.items.filter { it.slot in 0..44 && it.icon.isAir }.forEach {
+            inv.setItem(it.slot, null)
         }
 
         NavBar.apply(inv, player, plugin, def.navActive)
@@ -134,7 +146,6 @@ class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
             }
         }
 
-        // GUI を閉じてから実行が必要なアクション種別
         val needsCloseFirst = actions.any {
             it.type in setOf(
                 PopupActionType.CLOSE,
@@ -164,54 +175,41 @@ class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
             when (action.type) {
                 PopupActionType.PLAYER_CMD ->
                     player.performCommand(action.value.replace("%player%", player.name))
-
                 PopupActionType.CONSOLE_CMD ->
                     Bukkit.dispatchCommand(Bukkit.getConsoleSender(), action.value.replace("%player%", player.name))
-
                 PopupActionType.OP_PLAYER_CMD -> {
                     if (!player.isOp) return
                     player.performCommand(action.value.replace("%player%", player.name))
                 }
-
                 PopupActionType.SUGGEST_COMMAND -> {
                     val cmd = action.value.replace("%player%", player.name)
                     val msg = Component.text()
                         .decoration(TextDecoration.ITALIC, false)
                         .append(Component.text("▶ ").color(NamedTextColor.GREEN))
                         .append(
-                            Component.text(cmd)
-                                .color(NamedTextColor.YELLOW)
+                            Component.text(cmd).color(NamedTextColor.YELLOW)
                                 .clickEvent(ClickEvent.suggestCommand(cmd))
                                 .hoverEvent(HoverEvent.showText(
                                     Component.text("クリックでチャット欄に入力")
-                                        .color(NamedTextColor.GRAY)
-                                        .decoration(TextDecoration.ITALIC, false)
+                                        .color(NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
                                 ))
-                        )
-                        .build()
+                        ).build()
                     player.sendMessage(msg)
                 }
-
                 PopupActionType.OPEN_POPUP  -> open(player, action.value)
-
                 PopupActionType.OPEN_SHOP   -> {
                     val cat = action.value
-                    if (cat.isEmpty()) open(player, "shopindex")
-                    else plugin.shopEngine.openShop(player, cat)
+                    if (cat.isEmpty()) open(player, "shopindex") else plugin.shopEngine.openShop(player, cat)
                 }
-
                 PopupActionType.OPEN_SELL        -> plugin.sellEngine.openSellMenu(player)
                 PopupActionType.OPEN_MACRO       -> plugin.macroEngine.openMacroList(player)
-
                 PopupActionType.OPEN_POINT_SHOP  -> {
                     val catId = if (action.value.isEmpty() || action.value == "true")
                         plugin.pointShopLoader.getAllCategories().keys.firstOrNull() ?: return
                     else action.value
                     plugin.pointShopEngine.openShop(player, catId)
                 }
-
                 PopupActionType.OPEN_MENU -> plugin.menuEngine.openMenu(player, action.value)
-
                 else -> {}
             }
         }

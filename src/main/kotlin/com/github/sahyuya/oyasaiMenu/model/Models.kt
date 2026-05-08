@@ -33,7 +33,6 @@ enum class ActionType {
     CLOSE_MENU,
     MACRO_EXECUTE,
     PLACEHOLDER_TEXT,
-    DISCORD_FETCH,
     SOUND,
     BROADCAST,
     OPEN_SHOP,

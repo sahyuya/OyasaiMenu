@@ -82,10 +82,10 @@ class PointShopEngine(private val plugin: OyasaiMenu) : Listener {
         listOf(46,47,51,52).forEach { inv.setItem(it, glass) }
         inv.setItem(45, makeItem(Material.ARROW, "&c← 戻る", listOf("&7ショップ一覧に戻ります")))
         val hasPrev = state.page > 0
-        inv.setItem(48, makeItem(if (hasPrev) Material.ARROW else Material.GRAY_STAINED_GLASS_PANE, if (hasPrev) "&e← 前のページ" else "&8前のページなし"))
+        inv.setItem(48, makeItem(if (hasPrev) Material.ARROW else Material.BLACK_STAINED_GLASS_PANE, if (hasPrev) "&e← 前のページ" else "&8前のページなし"))
         inv.setItem(49, makeItem(Material.BOOK, "&fページ &e${state.page+1} &7/ &e${category.pageCount}", listOf("&7全 ${category.itemList.size} 種")))
         val hasNext = state.page < category.pageCount - 1
-        inv.setItem(50, makeItem(if (hasNext) Material.ARROW else Material.GRAY_STAINED_GLASS_PANE, if (hasNext) "&e次のページ →" else "&8次のページなし"))
+        inv.setItem(50, makeItem(if (hasNext) Material.ARROW else Material.BLACK_STAINED_GLASS_PANE, if (hasNext) "&e次のページ →" else "&8次のページなし"))
         val balStr = if (EconomyManager.isAvailable) EconomyManager.format(EconomyManager.getBalance(player)) else "---"
         inv.setItem(53, makeItem(Material.NETHER_STAR, "&6ポイント: &f${TokenCurrencyManager.format(tokens)}P",
             listOf("&7所持ポイント: &f${TokenCurrencyManager.format(tokens)}P","&7所持金: &f$balStr","","&eクリックで残高を更新")))
