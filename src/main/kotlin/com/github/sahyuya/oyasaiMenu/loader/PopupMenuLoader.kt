@@ -12,19 +12,10 @@ import java.io.File
  * 変更点:
  *   - fallback_lore: 権限を持たないプレイヤー向けの説明文リスト
  *   - fallback_icon: AIR を指定すると強制的に空欄にする
- *     (null = ガラス埋め、AIR = 完全に空、その他 = そのマテリアル)
+ *     (null = ガラス埋め、AIR = 完全に空、CUSTOM_HEAD = カスタムヘッド、その他 = そのマテリアル)
+ *   - fallback_texture: fallback_icon が CUSTOM_HEAD のときのテクスチャハッシュ
+ *   - fallback_actions: 権限不足プレイヤーがクリックした際のアクション
  *   - required_permission: 特定パーミッションを持つプレイヤーのみ表示
- *
- * YAML 例:
- *   vip_item:
- *     slot: 5
- *     icon: DIAMOND
- *     required_permission: "navis.blue"
- *     fallback_icon: GRAY_STAINED_GLASS_PANE
- *     fallback_name: "&7VIP限定"
- *     fallback_lore:
- *       - "&7このアイテムはVIP以上で利用できます"
- *       - "&7ランクアップしてご利用ください"
  */
 class PopupMenuLoader(private val plugin: OyasaiMenu) {
 
@@ -88,24 +79,32 @@ class PopupMenuLoader(private val plugin: OyasaiMenu) {
             val opOnly             = sec.getBoolean("op_only", false)
             val requiredPermission = sec.getString("required_permission")
 
+            // fallback_icon の解決
             val fallbackIconName = sec.getString("fallback_icon")?.uppercase()
             val fallbackIcon: Material? = when {
-                fallbackIconName == null     -> null
-                fallbackIconName == "AIR"    -> Material.AIR
+                fallbackIconName == null       -> null
+                fallbackIconName == "AIR"      -> Material.AIR
+                fallbackIconName == "CUSTOM_HEAD" -> Material.PLAYER_HEAD
                 else -> runCatching { Material.valueOf(fallbackIconName) }.getOrElse {
                     plugin.logger.warning("Popup $id '$key': 不明な fallback_icon '$fallbackIconName'")
                     null
                 }
             }
-
-            val fallbackName = sec.getString("fallback_name", " ") ?: " "
-            val fallbackLore = sec.getStringList("fallback_lore")  // 権限なしプレイヤー向け説明文
+            val fallbackTexture = sec.getString("fallback_texture")
+            val fallbackName    = sec.getString("fallback_name", " ") ?: " "
+            val fallbackLore    = sec.getStringList("fallback_lore")
 
             val actions = mutableListOf<PopupAction>()
             @Suppress("UNCHECKED_CAST")
             (sec.getList("actions") ?: emptyList<Any>())
                 .filterIsInstance<Map<String, Any>>()
                 .forEach { parseAction(it)?.let { a -> actions.add(a) } }
+
+            val fallbackActions = mutableListOf<PopupAction>()
+            @Suppress("UNCHECKED_CAST")
+            (sec.getList("fallback_actions") ?: emptyList<Any>())
+                .filterIsInstance<Map<String, Any>>()
+                .forEach { parseAction(it)?.let { a -> fallbackActions.add(a) } }
 
             items.add(PopupItem(
                 key                = key,
@@ -119,8 +118,10 @@ class PopupMenuLoader(private val plugin: OyasaiMenu) {
                 opOnly             = opOnly,
                 requiredPermission = requiredPermission,
                 fallbackIcon       = fallbackIcon,
+                fallbackTexture    = fallbackTexture,
                 fallbackName       = fallbackName,
-                fallbackLore       = fallbackLore
+                fallbackLore       = fallbackLore,
+                fallbackActions    = fallbackActions
             ))
         }
 

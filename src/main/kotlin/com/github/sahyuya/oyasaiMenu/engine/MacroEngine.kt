@@ -25,7 +25,6 @@ import org.bukkit.event.player.PlayerEditBookEvent
 import org.bukkit.inventory.Inventory
 import org.bukkit.inventory.ItemStack
 import org.bukkit.inventory.meta.BookMeta
-import org.bukkit.scheduler.BukkitTask
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.UUID
@@ -33,15 +32,12 @@ import java.util.UUID
 /**
  * MacroEngine
  *
- * ■ 新規マクロ作成フロー (変更)
- *   旧: チャットでID名入力 → 本エディタでコマンド入力
- *   新: 本エディタでコマンド入力 → マクロ名を本の署名タイトルから取得
- *       署名タイトルなし (Done のみ) → チャットで名前入力 (20秒タイムアウト)
- *       20秒以内に入力なし → 作成失敗・キャンセル
- *
- * ■ BookEditorState
- *   macroId = null  → 新規作成
- *   macroId = "id"  → 既存マクロのコマンド編集
+ * 変更点:
+ *   - openMacroList: oyasaimenu.macro 権限チェックを追加
+ *   - BookEditorState: macroId + slot を保持し、本削除をスロット指定で確実に実行
+ *   - removeBook: delay を 3L に延長し、スロット優先でクリア
+ *   - 本エディタのヒントテキスト: ゲームと同じ構文で登録する説明に更新
+ *   - onChat / onPlayerEditBook: player を MacroManager に渡してホワイトリスト・上限チェック
  */
 class MacroEngine(private val plugin: OyasaiMenu) : Listener {
 
@@ -49,33 +45,16 @@ class MacroEngine(private val plugin: OyasaiMenu) : Listener {
     private val editModeMap:   MutableMap<String, Boolean> = mutableMapOf()
     private val pageMap:       MutableMap<String, Int>     = mutableMapOf()
 
-    /**
-     * チャット入力待ち状態。
-     *   macroId = null  → 新規マクロのマクロ名入力中
-     *   macroId = "id"  → 既存マクロの名前変更中
-     */
-    private data class ChatInputState(val macroId: String?)
+    private data class ChatInputState(val mode: InputMode, val macroId: String?)
+    private enum class InputMode { MACRO_NAME, COMMAND_ADD }
     private val chatInputPlayers: MutableMap<String, ChatInputState> = mutableMapOf()
 
-    /** 本エディタの状態 (macroId = null なら新規作成) */
-    private data class BookEditorState(val macroId: String?, val slot: Int)
+    /** 本エディタ中のプレイヤー → (マクロID, 渡した本のスロット番号) */
+    private data class BookEditorState(val macroId: String, val slot: Int)
     private val bookEditorPending: MutableMap<UUID, BookEditorState> = mutableMapOf()
-
-    /**
-     * 新規マクロ作成時、コマンドが確定してマクロ名の入力待ち状態。
-     * timeoutTask をキャンセルすることでタイムアウトを中断できる。
-     */
-    private data class PendingMacroCommands(
-        val commands: List<String>,
-        val timeoutTask: BukkitTask
-    )
-    private val pendingMacroCreation: MutableMap<String, PendingMacroCommands> = mutableMapOf()
 
     private val plainText  = PlainTextComponentSerializer.plainText()
     private val dateFormat = SimpleDateFormat("MM/dd HH:mm")
-
-    /** マクロ名のチャット入力タイムアウト秒数 */
-    private val nameInputTimeoutSec = 20
 
     // ============================
     // マクロ一覧を開く
@@ -91,183 +70,75 @@ class MacroEngine(private val plugin: OyasaiMenu) : Listener {
     }
 
     // ============================
-    // 本エディタ — 新規作成
+    // 本エディタ
     // ============================
 
-    /**
-     * 新規マクロ作成用の本エディタを開く。
-     * macroId = null として保存し、PlayerEditBookEvent で判別する。
-     */
-    private fun openBookEditorForNew(player: Player) {
-        val book = ItemStack(Material.WRITABLE_BOOK)
-        val meta = book.itemMeta as BookMeta
-        meta.addPage(
-            "コマンドを1行ずつ入力\n\n" +
-            "ゲームと同じ構文で登録:\n" +
-            "  /warp home\n" +
-            "  //wand (FAWE)\n" +
-            "  //set stone\n\n" +
-            "待機: wait 1s / wait 0.5s\n\n" +
-            "★ マクロ名の決め方:\n" +
-            "署名 → 署名タイトルが名前\n" +
-            "Done → チャットで20秒以内に入力\n\n" +
-            "Done で確定"
-        )
-        book.itemMeta = meta
-        val slot = player.inventory.firstEmpty().takeIf { it >= 0 } ?: 8
-        player.inventory.setItem(slot, book)
-        player.inventory.heldItemSlot = slot
-        bookEditorPending[player.uniqueId] = BookEditorState(macroId = null, slot = slot)
-        player.sendMessage(c("&b=== 新規マクロ作成 ==="))
-        player.sendMessage(c("&7コマンドを入力してください。"))
-        player.sendMessage(c("&7署名タイトル → マクロ名 / Done → チャットで入力 &e(${nameInputTimeoutSec}秒以内)"))
-    }
-
-    // ============================
-    // 本エディタ — 既存マクロ編集
-    // ============================
-
-    private fun openBookEditorForEdit(player: Player, macroId: String) {
+    private fun openBookEditor(player: Player, macroId: String) {
         val book = ItemStack(Material.WRITABLE_BOOK)
         val meta = book.itemMeta as BookMeta
         val macro = plugin.macroManager.getMacro(player.uniqueId, macroId)
         if (macro != null && macro.commands.isNotEmpty()) {
-            splitIntoPages(macro.commands.joinToString("\n"), 254).forEach { meta.addPage(it) }
+            val content = macro.commands.joinToString("\n")
+            splitIntoPages(content, 254).forEach { meta.addPage(it) }
         } else {
             meta.addPage(
                 "コマンドを1行ずつ入力\n\n" +
                 "ゲームと同じ構文で登録:\n" +
                 "  /warp home\n" +
-                "  //wand (FAWE)\n\n" +
-                "待機: wait 1s / wait 0.5s\n\n" +
+                "  //wand (FAWE)\n" +
+                "  //set stone\n\n" +
+                "スラッシュなし:\n" +
+                "  wait 1s  (1秒待機)\n" +
+                "  wait 0.5s\n\n" +
                 "Done で確定"
             )
         }
         book.itemMeta = meta
+
         val slot = player.inventory.firstEmpty().takeIf { it >= 0 } ?: 8
         player.inventory.setItem(slot, book)
         player.inventory.heldItemSlot = slot
-        bookEditorPending[player.uniqueId] = BookEditorState(macroId = macroId, slot = slot)
+        bookEditorPending[player.uniqueId] = BookEditorState(macroId, slot)
         player.sendMessage(c("&b=== マクロ本エディタ ===  Done で確定"))
     }
 
-    // ============================
-    // PlayerEditBookEvent
-    // ============================
-
     @EventHandler
     fun onPlayerEditBook(event: PlayerEditBookEvent) {
-        val uuid    = event.player.uniqueId
-        val edState = bookEditorPending.remove(uuid) ?: return
-        val meta    = event.newBookMeta
+        val uuid      = event.player.uniqueId
+        val edState   = bookEditorPending.remove(uuid) ?: return
+        val macroId   = edState.macroId
+        val meta      = event.newBookMeta
 
-        // 書籍内容からコマンドリストを抽出
         val commands = meta.pages()
             .joinToString("\n") { plainText.serialize(it) }
-            .split("\n")
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
+            .split("\n").map { it.trim() }.filter { it.isNotEmpty() }
 
-        if (edState.macroId == null) {
-            // ===== 新規作成 =====
-            // 署名はキャンセルして署名済み本にしない (タイトルだけ使う)
-            if (event.isSigning) event.isCancelled = true
-            removeBook(event.player, edState.slot)
+        if (event.isSigning) event.isCancelled = true
+        removeBook(event.player, edState.slot)
 
-            if (commands.isEmpty()) {
-                event.player.sendMessage(c("&cコマンドが空のためマクロ作成を中止しました。"))
-                return
-            }
-
-            // 署名タイトルが設定されていればそのままマクロ名に使う
-            val titleFromSign: String? = if (event.isSigning) {
-                meta.title()?.let { plainText.serialize(it) }?.takeIf { it.isNotBlank() }
-            } else null
-
-            if (titleFromSign != null) {
-                createNewMacro(event.player, titleFromSign, commands)
-            } else {
-                // タイトルなし / Done → チャットでマクロ名を入力させる
-                startNameInputWithTimeout(event.player, commands)
-            }
-
-        } else {
-            // ===== 既存マクロ編集 =====
-            if (event.isSigning) event.isCancelled = true
-            removeBook(event.player, edState.slot)
-
-            if (commands.isEmpty()) {
-                event.player.sendMessage(c("&cコマンドが空です。変更を破棄しました。")); return
-            }
-            val macro = plugin.macroManager.getMacro(event.player.uniqueId, edState.macroId)
-                ?: run { event.player.sendMessage(c("&cマクロが見つかりません。")); return }
-            if (commands == macro.commands) {
-                event.player.sendMessage(c("&7変更がなかったため保存しませんでした。")); return
-            }
-            val err = plugin.macroManager.updateMacro(event.player.uniqueId, macro.copy(commands = commands), event.player)
-            if (err != null) {
-                event.player.sendMessage(c("&c$err"))
-            } else {
-                event.player.sendMessage(c("&aマクロ「&e${macro.name}&a」を更新しました。&f${commands.size}&a個"))
-                commands.take(5).forEachIndexed { i, cmd ->
-                    event.player.sendMessage(c("  &7${i+1}. ${if (plugin.macroManager.isWaitCommand(cmd)) "⏱ $cmd" else cmd}"))
-                }
-                if (commands.size > 5) event.player.sendMessage(c("  &7...他 ${commands.size - 5} 個"))
-            }
+        if (commands.isEmpty()) {
+            event.player.sendMessage(c("&cコマンドが空です。変更を破棄しました。")); return
         }
-    }
 
-    /**
-     * コマンドを保持してチャットでマクロ名の入力を待つ。
-     * [nameInputTimeoutSec] 秒以内に入力がなければ自動キャンセル。
-     */
-    private fun startNameInputWithTimeout(player: Player, commands: List<String>) {
-        val uid = player.uniqueId.toString()
+        val macro = plugin.macroManager.getMacro(event.player.uniqueId, macroId)
+            ?: run { event.player.sendMessage(c("&cマクロが見つかりません。")); return }
 
-        // 既存の待機があれば先にキャンセル
-        pendingMacroCreation.remove(uid)?.timeoutTask?.cancel()
+        if (commands == macro.commands) {
+            event.player.sendMessage(c("&7変更がなかったため保存しませんでした。")); return
+        }
 
-        val timeoutTask = Bukkit.getScheduler().runTaskLater(plugin, Runnable {
-            if (pendingMacroCreation.remove(uid) != null) {
-                chatInputPlayers.remove(uid)
-                player.sendMessage(c("&c${nameInputTimeoutSec}秒以内に入力がなかったためマクロ作成を中止しました。"))
-            }
-        }, (nameInputTimeoutSec * 20).toLong())
-
-        pendingMacroCreation[uid] = PendingMacroCommands(commands, timeoutTask)
-        chatInputPlayers[uid]     = ChatInputState(macroId = null)
-
-        player.sendMessage(c("&7マクロ名をチャットで入力してください。&e(${nameInputTimeoutSec}秒以内)"))
-        player.sendMessage(c("&7キャンセル: &f「cancel」と入力"))
-    }
-
-    /** 新規マクロを実際に作成する共通ヘルパー */
-    private fun createNewMacro(player: Player, name: String, commands: List<String>) {
-        val uid      = player.uniqueId.toString()
-        val safeName = name.lowercase().replace(Regex("[^a-z0-9_\\-]"), "_").take(32)
-        val baseId   = "${player.name.lowercase()}_${safeName}"
-        val existing = plugin.macroManager.getMacros(player.uniqueId).map { it.id }.toSet()
-        val newId    = generateUniqueId(baseId, existing)
-
-        val err = plugin.macroManager.addMacro(
-            player.uniqueId,
-            PlayerMacro(id = newId, name = name, ownerUUID = uid, commands = commands),
-            plugin.macroManager.getMaxMacros(player),
-            player
-        )
+        val err = plugin.macroManager.updateMacro(event.player.uniqueId, macro.copy(commands = commands), event.player)
         if (err != null) {
-            player.sendMessage(c("&c作成失敗: $err"))
+            event.player.sendMessage(c("&c$err"))
         } else {
-            player.sendMessage(c("&aマクロ「&e$name&a」を作成しました。 &8(ID: &f$newId&8)"))
-            player.sendMessage(c("&7コマンド数: &f${commands.size}個"))
+            event.player.sendMessage(c("&aマクロ「&e${macro.name}&a」を更新しました。&f${commands.size}&a個"))
+            commands.take(5).forEachIndexed { i, cmd ->
+                event.player.sendMessage(c("  &7${i+1}. ${if (plugin.macroManager.isWaitCommand(cmd)) "⏱ $cmd" else cmd}"))
+            }
+            if (commands.size > 5) event.player.sendMessage(c("  &7...他 ${commands.size - 5} 個"))
         }
-        openMacroList(player)
     }
 
-    /**
-     * 指定スロットの本をインベントリから確実に削除する。
-     * Paper の書籍処理が完了するまで 3 tick 待つ。
-     */
     private fun removeBook(player: Player, slot: Int) {
         plugin.server.scheduler.runTaskLater(plugin, Runnable {
             val atSlot = player.inventory.getItem(slot)
@@ -275,7 +146,6 @@ class MacroEngine(private val plugin: OyasaiMenu) : Listener {
                 player.inventory.setItem(slot, null)
                 return@Runnable
             }
-            // フォールバック: 全スキャン
             for (i in 0 until player.inventory.size) {
                 val item = player.inventory.getItem(i) ?: continue
                 if (item.type == Material.WRITABLE_BOOK || item.type == Material.WRITTEN_BOOK) {
@@ -305,9 +175,11 @@ class MacroEngine(private val plugin: OyasaiMenu) : Listener {
         }
 
         if (curPage > 0)
-            inv.setItem(46, makeItem(Material.ARROW, "&e← 前のページ", listOf("&7ページ &f${curPage}&7/&f${pageCount}")))
+            inv.setItem(46, makeItem(Material.ARROW, "&e← 前のページ",
+                listOf("&7ページ &f${curPage}&7/&f${pageCount}")))
         if (curPage < pageCount - 1)
-            inv.setItem(52, makeItem(Material.ARROW, "&e次のページ →", listOf("&7ページ &f${curPage + 2}&7/&f${pageCount}")))
+            inv.setItem(52, makeItem(Material.ARROW, "&e次のページ →",
+                listOf("&7ページ &f${curPage + 2}&7/&f${pageCount}")))
 
         inv.setItem(45, makeItem(Material.ARROW, "&c← 戻る", listOf("&7メインメニューに戻ります")))
 
@@ -382,9 +254,11 @@ class MacroEngine(private val plugin: OyasaiMenu) : Listener {
             if (macro.commands.size > 5) add("&8  ...他 ${macro.commands.size - 5} 個")
             add(""); add("&eクリックで本エディタを開く")
         }))
-        inv.setItem(14, makeItem(Material.LIME_CONCRETE, "&a▶ 今すぐ実行", listOf("&7このマクロを今すぐ実行します")))
+        inv.setItem(14, makeItem(Material.LIME_CONCRETE, "&a▶ 今すぐ実行",
+            listOf("&7このマクロを今すぐ実行します")))
         inv.setItem(15, makeItem(Material.PAPER, "&b共有IDを発行", shareLore))
-        inv.setItem(16, makeItem(Material.TNT, "&cマクロを削除", listOf("&7このマクロを削除します。", "&c取り消しできません。")))
+        inv.setItem(16, makeItem(Material.TNT, "&cマクロを削除",
+            listOf("&7このマクロを削除します。", "&c取り消しできません。")))
         inv.setItem(49, makeItem(Material.ARROW, "&c← 戻る", listOf("&7マクロ一覧に戻ります")))
         return inv
     }
@@ -450,43 +324,72 @@ class MacroEngine(private val plugin: OyasaiMenu) : Listener {
 
     @EventHandler(priority = EventPriority.LOWEST)
     fun onChat(event: AsyncPlayerChatEvent) {
-        val uid   = event.player.uniqueId.toString()
-        val state = chatInputPlayers[uid] ?: return
+        val uuid  = event.player.uniqueId.toString()
+        val state = chatInputPlayers[uuid] ?: return
         event.isCancelled = true
         val input  = event.message.trim()
         val player = event.player
 
         Bukkit.getScheduler().runTask(plugin, Runnable {
-            chatInputPlayers.remove(uid)
-
-            if (state.macroId == null) {
-                // ===== 新規マクロのマクロ名入力 =====
-                val pending = pendingMacroCreation.remove(uid)
-                if (pending == null) {
-                    // タイムアウト済み — timeoutTask が既にキャンセル処理を行った
-                    return@Runnable
+            chatInputPlayers.remove(uuid)
+            when (state.mode) {
+                InputMode.MACRO_NAME -> {
+                    if (input.isEmpty() || input.equals("cancel", ignoreCase = true)) {
+                        player.sendMessage(c("&eキャンセルしました。")); openMacroList(player); return@Runnable
+                    }
+                    if (state.macroId == null) {
+                        val mcid      = player.name.lowercase()
+                        val safeName  = input.lowercase().replace(Regex("[^a-z0-9_\\-]"), "_").take(32)
+                        val baseId    = "${mcid}_${safeName}"
+                        val existing  = plugin.macroManager.getMacros(player.uniqueId).map { it.id }.toSet()
+                        val newId     = generateUniqueId(baseId, existing)
+                        val maxMacros = plugin.macroManager.getMaxMacros(player)
+                        val err       = plugin.macroManager.addMacro(
+                            player.uniqueId,
+                            PlayerMacro(id = newId, name = input, ownerUUID = uuid, commands = emptyList()),
+                            maxMacros,
+                            player
+                        )
+                        if (err != null) { player.sendMessage(c("&c$err")); openMacroList(player); return@Runnable }
+                        player.sendMessage(c("&7マクロ名: &f$input &8(ID: $newId)"))
+                        Bukkit.getScheduler().runTaskLater(plugin, Runnable { openBookEditor(player, newId) }, 1L)
+                    } else {
+                        val macro = plugin.macroManager.getMacro(player.uniqueId, state.macroId)
+                        if (macro != null) {
+                            // 名前変更はコマンド変更なし。player は渡さなくてよい
+                            plugin.macroManager.updateMacro(player.uniqueId, macro.copy(name = input))
+                            player.sendMessage(c("&aマクロ名を変更しました: &f$input"))
+                        }
+                        openMacroList(player)
+                    }
                 }
-                pending.timeoutTask.cancel()
-
-                if (input.isEmpty() || input.equals("cancel", ignoreCase = true)) {
-                    player.sendMessage(c("&eマクロ作成をキャンセルしました。"))
-                    openMacroList(player)
-                    return@Runnable
+                InputMode.COMMAND_ADD -> {
+                    val macroId = state.macroId ?: run { openMacroList(player); return@Runnable }
+                    if (input.equals("cancel", ignoreCase = true)) {
+                        plugin.macroManager.removeMacro(player.uniqueId, macroId)
+                        player.sendMessage(c("&eキャンセルしました。")); openMacroList(player); return@Runnable
+                    }
+                    if (input.equals("done", ignoreCase = true)) {
+                        val macro = plugin.macroManager.getMacro(player.uniqueId, macroId)
+                        if (macro != null && macro.commands.isEmpty()) {
+                            plugin.macroManager.removeMacro(player.uniqueId, macroId)
+                            player.sendMessage(c("&cコマンドが空のため作成しませんでした。"))
+                        } else player.sendMessage(c("&aマクロ「&e${macro?.name}&a」を作成しました。"))
+                        openMacroList(player); return@Runnable
+                    }
+                    val macro = plugin.macroManager.getMacro(player.uniqueId, macroId)
+                    if (macro != null) {
+                        // player を渡してコマンド数・ホワイトリストを検証
+                        val err = plugin.macroManager.updateMacro(
+                            player.uniqueId,
+                            macro.copy(commands = macro.commands + input.trim()),
+                            player
+                        )
+                        if (err != null) player.sendMessage(c("&c$err"))
+                        else player.sendMessage(c("&7追加: &f${input.trim()} &7(「done」で完了)"))
+                    }
+                    chatInputPlayers[uuid] = state
                 }
-
-                createNewMacro(player, input, pending.commands)
-
-            } else {
-                // ===== 既存マクロの名前変更 =====
-                if (input.isEmpty() || input.equals("cancel", ignoreCase = true)) {
-                    player.sendMessage(c("&eキャンセルしました。")); openMacroList(player); return@Runnable
-                }
-                val macro = plugin.macroManager.getMacro(player.uniqueId, state.macroId)
-                if (macro != null) {
-                    plugin.macroManager.updateMacro(player.uniqueId, macro.copy(name = input))
-                    player.sendMessage(c("&aマクロ名を変更しました: &f$input"))
-                }
-                openMacroList(player)
             }
         })
     }
@@ -502,12 +405,9 @@ class MacroEngine(private val plugin: OyasaiMenu) : Listener {
             10 -> {
                 player.closeInventory()
                 player.sendMessage(c("&7新しいマクロ名を入力してください。(&e「cancel」でキャンセル)"))
-                chatInputPlayers[player.uniqueId.toString()] = ChatInputState(macroId = macroId)
+                chatInputPlayers[player.uniqueId.toString()] = ChatInputState(InputMode.MACRO_NAME, macroId)
             }
-            12 -> {
-                player.closeInventory()
-                Bukkit.getScheduler().runTaskLater(plugin, Runnable { openBookEditorForEdit(player, macroId) }, 1L)
-            }
+            12 -> { player.closeInventory(); Bukkit.getScheduler().runTaskLater(plugin, Runnable { openBookEditor(player, macroId) }, 1L) }
             14 -> executeMacro(player, macro)
             15 -> handleShare(player, macro)
             16 -> {
@@ -571,10 +471,7 @@ class MacroEngine(private val plugin: OyasaiMenu) : Listener {
     private fun executeMacro(player: Player, macro: PlayerMacro) {
         val err = plugin.macroManager.executeMacro(player, macro.id)
         if (err != null) player.sendMessage(c("&c$err"))
-        else {
-            player.sendMessage(c("&aマクロ「&e${macro.name}&a」を実行しました。"))
-            player.playSound(player.location, org.bukkit.Sound.UI_BUTTON_CLICK, 1f, 1.2f)
-        }
+        else { player.sendMessage(c("&aマクロ「&e${macro.name}&a」を実行しました。")); player.playSound(player.location, org.bukkit.Sound.UI_BUTTON_CLICK, 1f, 1.2f) }
     }
 
     private fun openDetail(player: Player, macro: PlayerMacro) {
@@ -582,15 +479,14 @@ class MacroEngine(private val plugin: OyasaiMenu) : Listener {
         activePlayers.add(player.uniqueId.toString())
     }
 
-    /** 新規マクロ作成開始 — 本エディタを直接開く (名前は後で決める) */
     private fun startCreateMacro(player: Player) {
         val macros    = plugin.macroManager.getMacros(player.uniqueId)
         val maxMacros = plugin.macroManager.getMaxMacros(player)
-        if (macros.size >= maxMacros) {
-            player.sendMessage(c("&cマクロの上限 ($maxMacros) に達しています。")); return
-        }
+        if (macros.size >= maxMacros) { player.sendMessage(c("&cマクロの上限 ($maxMacros) に達しています。")); return }
         player.closeInventory()
-        Bukkit.getScheduler().runTaskLater(plugin, Runnable { openBookEditorForNew(player) }, 1L)
+        player.sendMessage(c("&7マクロ名を入力してください。(&e「cancel」でキャンセル)"))
+        player.sendMessage(c("&7ID は &f<あなたのID>_<マクロ名> &7の形式で自動生成されます。"))
+        chatInputPlayers[player.uniqueId.toString()] = ChatInputState(InputMode.MACRO_NAME, null)
     }
 
     private fun changePage(player: Player, delta: Int) {

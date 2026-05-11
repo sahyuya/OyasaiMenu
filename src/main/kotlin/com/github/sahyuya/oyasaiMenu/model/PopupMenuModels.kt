@@ -20,9 +20,12 @@ data class PopupMenuDef(
  *                           null    → ガラス (fillGlass) で埋める
  *                           AIR     → 強制的に空欄にする (ガラスも置かない)
  *                           その他  → 指定マテリアルを表示
+ * @param fallbackTexture    fallbackIcon が PLAYER_HEAD (CUSTOM_HEAD) のときのテクスチャハッシュ
  * @param fallbackName       fallbackIcon の表示名。デフォルト " " (空白)
  * @param fallbackLore       fallbackIcon の説明文。権限なしプレイヤー向け説明などに使う。
  *                           空リストの場合は lore なし
+ * @param fallbackActions    表示条件を満たさないプレイヤーがクリックした際に実行するアクション。
+ *                           空リストの場合はクリック無効 (従来通り)
  */
 data class PopupItem(
     val key: String,
@@ -36,8 +39,10 @@ data class PopupItem(
     val opOnly: Boolean = false,
     val requiredPermission: String? = null,
     val fallbackIcon: Material? = null,
+    val fallbackTexture: String? = null,
     val fallbackName: String = " ",
-    val fallbackLore: List<String> = emptyList()
+    val fallbackLore: List<String> = emptyList(),
+    val fallbackActions: List<PopupAction> = emptyList()
 ) {
     /**
      * このアイテムをプレイヤーが表示・操作できるかどうかを返す。

@@ -28,12 +28,9 @@ import org.bukkit.inventory.ItemStack
  * PopupMenuEngine
  *
  * 変更点:
- *   - fallback_lore: 権限なしプレイヤー向けの説明文を表示
- *   - fallback_icon: AIR → 強制的に空欄 (fillGlass でもガラスを置かない)
- *     null    → fillGlass に任せる (デフォルトのガラス)
- *     AIR     → 強制空欄 (fillGlass 後にクリア)
- *     その他  → そのマテリアルを fallback_name / fallback_lore で表示
- *   - isVisibleTo(): PopupItem に委譲して required_permission / op_only を統一判定
+ *   - buildItemStack(): HIDE_ATTRIBUTES を追加してツール・防具の属性値を非表示
+ *   - fallback_icon: CUSTOM_HEAD/PLAYER_HEAD + fallback_texture でカスタムヘッド表示
+ *   - fallback_actions: 権限不足プレイヤーがクリックした際にアクションを実行
  */
 class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
 
@@ -61,22 +58,27 @@ class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
 
         def.items.forEach { item ->
             if (item.slot !in 0..44) return@forEach
-            if (item.icon.isAir) return@forEach  // icon 自体が AIR → fillGlass → 後でクリア
+            if (item.icon.isAir) return@forEach
 
             if (!item.isVisibleTo(player)) {
-                // 表示条件を満たさないプレイヤーへの fallback 処理
                 val fb = item.fallbackIcon
                 when {
-                    fb == null       -> { /* 未指定 → fillGlass に任せる */ }
-                    fb == Material.AIR -> { forceEmptySlots.add(item.slot) /* 強制空欄 */ }
-                    else             -> {
-                        // fallback_icon のマテリアルで表示 (fallback_name / fallback_lore を適用)
-                        val fbStack = ItemStack(fb)
-                        val fbMeta  = fbStack.itemMeta!!
+                    fb == null         -> { /* 未指定 → fillGlass に任せる */ }
+                    fb == Material.AIR -> { forceEmptySlots.add(item.slot) }
+                    else               -> {
+                        // fallback_icon のマテリアルで表示
+                        // PLAYER_HEAD + fallback_texture → CustomHead
+                        val fbStack = if (fb == Material.PLAYER_HEAD && item.fallbackTexture != null) {
+                            CustomHead.get(item.fallbackTexture)
+                        } else {
+                            ItemStack(fb)
+                        }
+                        val fbMeta = fbStack.itemMeta!!
                         fbMeta.displayName(comp(item.fallbackName))
                         if (item.fallbackLore.isNotEmpty()) {
                             fbMeta.lore(item.fallbackLore.map { comp(it) })
                         }
+                        fbMeta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES)
                         fbStack.itemMeta = fbMeta
                         inv.setItem(item.slot, fbStack)
                     }
@@ -90,12 +92,10 @@ class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
         // 空きスロットをガラスで埋める
         NavBar.fillGlass(inv, def.glass)
 
-        // icon = AIR のスロットをクリア (元から空欄にしたいスロット)
+        // icon = AIR のスロットをクリア
         def.items.filter { it.slot in 0..44 && it.icon.isAir }.forEach {
             inv.setItem(it.slot, null)
         }
-
-        // fallback_icon = AIR のスロットも強制クリア (fillGlass で上書きされた場合も対応)
         forceEmptySlots.forEach { inv.setItem(it, null) }
 
         NavBar.apply(inv, player, plugin, def.navActive)
@@ -110,6 +110,7 @@ class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
         val meta = stack.itemMeta ?: return stack
         if (item.name.isNotEmpty()) meta.displayName(comp(item.name))
         if (item.lore.isNotEmpty()) meta.lore(item.lore.map { comp(it) })
+        meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES)
         if (item.enchanted) {
             val unbreaking = runCatching { Registry.ENCHANTMENT.get(NamespacedKey.minecraft("unbreaking")) }.getOrNull()
             if (unbreaking != null) { meta.addEnchant(unbreaking, 1, true); meta.addItemFlags(ItemFlag.HIDE_ENCHANTS) }
@@ -141,7 +142,12 @@ class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
                 val def  = plugin.popupMenuLoader.getPopup(popupId) ?: return
                 val item = def.items.find { it.slot == slot } ?: return
                 if (item.icon.isAir) return
-                if (!item.isVisibleTo(player)) return  // 表示条件を満たさないプレイヤーはクリック無効
+                if (!item.isVisibleTo(player)) {
+                    if (item.fallbackActions.isNotEmpty()) {
+                        executeActions(player, item.fallbackActions)
+                    }
+                    return
+                }
                 executeActions(player, item.actions)
             }
         }

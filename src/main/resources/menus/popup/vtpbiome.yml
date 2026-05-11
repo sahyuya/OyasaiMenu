@@ -92,7 +92,7 @@ items:
 
   sunflowerplains:
     slot: 10
-    icon: RED_TULIP
+    icon: SUNFLOWER
     name: "&eヒマワリ平原 (Sunflower Plains)"
     lore: ["/vtp SUNFLOWER_PLAINS"]
     actions:
@@ -109,7 +109,7 @@ items:
       - {close: true}
 
   desert:
-    slot: 16
+    slot: 12
     icon: SAND
     name: "&e砂漠 (Desert)"
     lore: [ "/vtp DESERT" ]
@@ -118,8 +118,8 @@ items:
       - { close: true }
 
   badlands:
-    slot: 16
-    icon: SAND
+    slot: 13
+    icon: RED_SAND
     name: "&6荒野 (Badlands)"
     lore: [ "/vtp BADLANDS" ]
     actions:
@@ -127,12 +127,12 @@ items:
       - { close: true }
 
   erodedbadlands:
-    slot: 16
-    icon: SAND
+    slot: 14
+    icon: TERRACOTTA
     name: "&cメサ (Eroded Badlands)"
-    lore: [ "/vtp ERODED＿BADLANDS" ]
+    lore: [ "/vtp ERODED_BADLANDS" ]
     actions:
-      - { player_cmd: "vtp ERODED＿BADLANDS" }
+      - { player_cmd: "vtp ERODED_BADLANDS" }
       - { close: true }
 
   forest:

@@ -56,14 +56,17 @@ class ShopEngine(private val plugin: OyasaiMenu) : Listener {
     }
 
     private fun buildShopItemStack(item: ShopItem, quantity: Int, isInverted: Boolean = false): ItemStack {
-        val stack = ItemStack(item.material!!, quantity.coerceIn(1, 64)); val meta = stack.itemMeta ?: return stack
+        val stack = ItemStack(item.material!!, quantity.coerceIn(1, 64))
+        val meta = stack.itemMeta ?: return stack
+        if (item.material == Material.BUNDLE) { return stack }
         if (item.customName?.isNotEmpty() == true) meta.displayName(comp(item.customName))
         val lore = mutableListOf<Component>()
-        item.customLore.forEach { lore += comp(it) }; if (item.customLore.isNotEmpty()) lore += comp("")
-        if (item.canBuy) lore += comp("&a購入: &f${EconomyManager.format(item.buyPrice)} &7× $quantity = &f${EconomyManager.format(item.buyPrice * quantity)}")
-        else lore += comp("&7購入: &c不可")
-        if (item.canSell) lore += comp("&b売却: &f${EconomyManager.format(item.sellPrice)} &7× $quantity = &f${EconomyManager.format(item.sellPrice * quantity)}")
-        else lore += comp("&7売却: &c不可")
+        item.customLore.forEach { lore += comp(it) }
+        if (item.customLore.isNotEmpty()) lore += comp("")
+        lore += if (item.canBuy) comp("&a購入: &f${EconomyManager.format(item.buyPrice)} &7× $quantity = &f${EconomyManager.format(item.buyPrice * quantity)}")
+        else comp("&7購入: &c不可")
+        lore += if (item.canSell) comp("&b売却: &f${EconomyManager.format(item.sellPrice)} &7× $quantity = &f${EconomyManager.format(item.sellPrice * quantity)}")
+        else comp("&7売却: &c不可")
         lore += comp("")
         if (item.enchantments.isEmpty()) {
             if (!isInverted) {
