@@ -23,15 +23,12 @@ import org.bukkit.inventory.ItemStack
  * MenuEngine
  *
  * 変更点:
- *   - root.yml が存在しなくてもフォールバック定義で動作する
- *   - icon: AIR → スロットを空欄にする (setItem しない)
- *   - icon: CUSTOM_HEAD + texture → CustomHead.get() を使用
- *   - アナウンス表示: 先頭1件を 0〜44 全スロットに同じ内容で表示
+ *   - staticCache (未使用) を削除
+ *   - clearCache() はプレイヤー状態のみリセット
  */
 class MenuEngine(private val plugin: OyasaiMenu) : Listener {
 
     private val playerStates: MutableMap<String, PlayerMenuState> = mutableMapOf()
-    private val staticCache:  MutableMap<String, Inventory>       = mutableMapOf()
 
     private val rootFallback = MenuDefinition(
         id    = "root",
@@ -126,6 +123,9 @@ class MenuEngine(private val plugin: OyasaiMenu) : Listener {
         if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) result = PlaceholderAPI.setPlaceholders(player, result)
         return result
     }
+
     fun getPlayerState(player: Player): PlayerMenuState? = playerStates[player.uniqueId.toString()]
-    fun clearCache() = staticCache.clear()
+
+    /** キャッシュクリア (互換性維持のため残すが実質的にプレイヤー状態を解放するのみ) */
+    fun clearCache() = playerStates.clear()
 }

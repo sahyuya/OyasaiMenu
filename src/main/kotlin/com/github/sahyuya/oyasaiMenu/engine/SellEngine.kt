@@ -77,9 +77,8 @@ class SellEngine(private val plugin: OyasaiMenu) : Listener {
         }
         inv.setItem(49, makeItem(Material.LIME_CONCRETE, "&a▶ 売却実行",
             listOf(
-                "&7バニラ名: ショップ登録価格で売却",
-                "&7カスタム名・特殊アイテム: ホワイトリスト登録のみ売却可",
-                "&7売却不可アイテムはインベントリへ返却"
+                "&7ショップに販売されているアイテムのみ売却可能",
+                "&7売却不可アイテムはそのまま残ります"
             )))
     }
 

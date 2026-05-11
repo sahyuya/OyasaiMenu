@@ -22,10 +22,6 @@ class MenuLoader(private val plugin: OyasaiMenu) {
 
     fun loadAll() {
         menus.clear()
-        templates.clear()
-
-        val templateFile = File(plugin.dataFolder, "items/templates.yml")
-        if (templateFile.exists()) loadTemplates(templateFile)
 
         val menusDir = File(plugin.dataFolder, "menus")
         if (!menusDir.exists()) {
@@ -38,7 +34,6 @@ class MenuLoader(private val plugin: OyasaiMenu) {
 
     fun getMenu(id: String): MenuDefinition? = menus[id]
     fun getMenuCount(): Int = menus.size
-    fun getAllMenuIds(): List<String> = menus.keys.toList()
 
     private fun scanDirectory(dir: File, prefix: String, skipFiles: Set<String> = emptySet()) {
         dir.listFiles()?.sortedBy { it.name }?.forEach { file ->
@@ -123,15 +118,5 @@ class MenuLoader(private val plugin: OyasaiMenu) {
         val success = (map["success"] as? List<Map<String, Any>>)?.map { parseActionMap(it) } ?: emptyList()
         val fail    = (map["fail"]    as? List<Map<String, Any>>)?.map { parseActionMap(it) } ?: emptyList()
         return MenuAction(type = type, params = params, success = success, fail = fail)
-    }
-
-    private fun loadTemplates(file: File) {
-        val yaml = YamlConfiguration.loadConfiguration(file)
-        yaml.getConfigurationSection("templates")?.getKeys(false)?.forEach { key ->
-            yaml.getConfigurationSection("templates.$key")?.let { sec ->
-                templates[key] = parseItemDefinition(sec, key)
-            }
-        }
-        plugin.logger.info("${templates.size} 個のテンプレートをロードしました。")
     }
 }

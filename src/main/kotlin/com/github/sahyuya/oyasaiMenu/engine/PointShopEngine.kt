@@ -72,7 +72,7 @@ class PointShopEngine(private val plugin: OyasaiMenu) : Listener {
                      .replace("%balance%", if (EconomyManager.isAvailable) EconomyManager.format(balance) else "---"))
         }.toMutableList()
         lore += comp("")
-        if (tokens >= item.cost) lore += comp("&e左クリック &7→ &a購入 (&f${TokenCurrencyManager.format(item.cost)}P&7)")
+        if (tokens >= item.cost) lore += comp("&e左クリック &7→ &a購入 &7(&3${TokenCurrencyManager.format(item.cost)}&fP&7)")
         else { lore += comp("&cポイントが不足しています"); lore += comp("&7必要: &c${TokenCurrencyManager.format(item.cost)}P &7/ 所持: &f${TokenCurrencyManager.format(tokens)}P") }
         meta.lore(lore); stack.itemMeta = meta; return stack
     }
@@ -87,8 +87,8 @@ class PointShopEngine(private val plugin: OyasaiMenu) : Listener {
         val hasNext = state.page < category.pageCount - 1
         inv.setItem(50, makeItem(if (hasNext) Material.ARROW else Material.BLACK_STAINED_GLASS_PANE, if (hasNext) "&e次のページ →" else "&8次のページなし"))
         val balStr = if (EconomyManager.isAvailable) EconomyManager.format(EconomyManager.getBalance(player)) else "---"
-        inv.setItem(53, makeItem(Material.NETHER_STAR, "&6ポイント: &f${TokenCurrencyManager.format(tokens)}P",
-            listOf("&7所持ポイント: &f${TokenCurrencyManager.format(tokens)}P","&7所持金: &f$balStr","","&eクリックで残高を更新")))
+        inv.setItem(53, makeItem(Material.NETHER_STAR, "&f所持ポイント: &3${TokenCurrencyManager.format(tokens)}&fP",
+            listOf("&7所持金: &6$balStr","","&eクリックで残高を更新")))
     }
 
     @EventHandler

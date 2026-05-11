@@ -10,17 +10,21 @@ import java.io.File
  * PopupMenuLoader
  *
  * 変更点:
- *   - fallback_icon / fallback_name: op_only=true の非OP向け表示を指定可能
- *   - op_only / op_player_cmd / op_console_cmd / suggest_command 対応
- *   - icon: AIR / CUSTOM_HEAD 対応
+ *   - fallback_lore: 権限を持たないプレイヤー向けの説明文リスト
+ *   - fallback_icon: AIR を指定すると強制的に空欄にする
+ *     (null = ガラス埋め、AIR = 完全に空、その他 = そのマテリアル)
+ *   - required_permission: 特定パーミッションを持つプレイヤーのみ表示
  *
  * YAML 例:
- *   staff_channel:
- *     slot: 1
- *     icon: COMMAND_BLOCK
- *     op_only: true
- *     fallback_icon: GRAY_STAINED_GLASS_PANE  # 非OPに表示するアイコン
- *     fallback_name: " "                       # 非OPに表示する名前 (省略可)
+ *   vip_item:
+ *     slot: 5
+ *     icon: DIAMOND
+ *     required_permission: "navis.blue"
+ *     fallback_icon: GRAY_STAINED_GLASS_PANE
+ *     fallback_name: "&7VIP限定"
+ *     fallback_lore:
+ *       - "&7このアイテムはVIP以上で利用できます"
+ *       - "&7ランクアップしてご利用ください"
  */
 class PopupMenuLoader(private val plugin: OyasaiMenu) {
 
@@ -31,15 +35,8 @@ class PopupMenuLoader(private val plugin: OyasaiMenu) {
         val dir = File(plugin.dataFolder, "menus/popup").also { it.mkdirs() }
 
         listOf(
-            "channel",
-            "sellmenu",
-            "shopindex",
-            "sociallikes",
-            "carbuilder",
-            "utility",
-            "macromenu",
-            "links",
-            "vtpbiome"
+            "channel", "sellmenu", "shopindex", "sociallikes",
+            "carbuilder", "utility", "macromenu", "links", "vtpbiome"
         ).forEach { name ->
             val f = File(dir, "$name.yml")
             if (!f.exists()) {
@@ -85,18 +82,24 @@ class PopupMenuLoader(private val plugin: OyasaiMenu) {
                 else -> runCatching { Material.valueOf(iconName) }.getOrDefault(Material.STONE)
             }
 
-            val enchanted    = sec.getBoolean("enchanted", false)
-            val name         = sec.getString("name", "") ?: ""
-            val lore         = sec.getStringList("lore")
-            val opOnly       = sec.getBoolean("op_only", false)
+            val enchanted          = sec.getBoolean("enchanted", false)
+            val name               = sec.getString("name", "") ?: ""
+            val lore               = sec.getStringList("lore")
+            val opOnly             = sec.getBoolean("op_only", false)
+            val requiredPermission = sec.getString("required_permission")
 
             val fallbackIconName = sec.getString("fallback_icon")?.uppercase()
-            val fallbackIcon: Material? = fallbackIconName?.let {
-                runCatching { Material.valueOf(it) }.getOrElse {
-                    plugin.logger.warning("Popup $id '$key': 不明な fallback_icon '$it'"); null
+            val fallbackIcon: Material? = when {
+                fallbackIconName == null     -> null
+                fallbackIconName == "AIR"    -> Material.AIR
+                else -> runCatching { Material.valueOf(fallbackIconName) }.getOrElse {
+                    plugin.logger.warning("Popup $id '$key': 不明な fallback_icon '$fallbackIconName'")
+                    null
                 }
             }
+
             val fallbackName = sec.getString("fallback_name", " ") ?: " "
+            val fallbackLore = sec.getStringList("fallback_lore")  // 権限なしプレイヤー向け説明文
 
             val actions = mutableListOf<PopupAction>()
             @Suppress("UNCHECKED_CAST")
@@ -105,17 +108,19 @@ class PopupMenuLoader(private val plugin: OyasaiMenu) {
                 .forEach { parseAction(it)?.let { a -> actions.add(a) } }
 
             items.add(PopupItem(
-                key          = key,
-                slot         = slot,
-                icon         = icon,
-                customTexture = texture,
-                name         = name,
-                lore         = lore,
-                enchanted    = enchanted,
-                actions      = actions,
-                opOnly       = opOnly,
-                fallbackIcon = fallbackIcon,
-                fallbackName = fallbackName
+                key                = key,
+                slot               = slot,
+                icon               = icon,
+                customTexture      = texture,
+                name               = name,
+                lore               = lore,
+                enchanted          = enchanted,
+                actions            = actions,
+                opOnly             = opOnly,
+                requiredPermission = requiredPermission,
+                fallbackIcon       = fallbackIcon,
+                fallbackName       = fallbackName,
+                fallbackLore       = fallbackLore
             ))
         }
 

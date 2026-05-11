@@ -2,41 +2,31 @@ package com.github.sahyuya.oyasaiMenu.command
 
 import com.github.sahyuya.oyasaiMenu.OyasaiMenu
 import com.github.sahyuya.oyasaiMenu.util.GuiUtil.c
-import io.papermc.paper.command.brigadier.BasicCommand
-import io.papermc.paper.command.brigadier.CommandSourceStack
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import org.bukkit.Bukkit
+import org.bukkit.command.Command
+import org.bukkit.command.CommandExecutor
+import org.bukkit.command.CommandSender
+import org.bukkit.command.TabCompleter
 import org.bukkit.entity.Player
 
-/**
- * /menuedit
- *
- *   /menuedit announce title|line|remove-line|book|show
- *   /menuedit shop <category> list|add|remove
- *   /menuedit whitelist list|add hand|h <売値>|remove <番号>
- */
-@Suppress("UnstableApiUsage")
-class MenuAdminCommand(private val plugin: OyasaiMenu) : BasicCommand {
-
+class MenuEditCommand(private val plugin: OyasaiMenu) : CommandExecutor, TabCompleter {
     private val plain = PlainTextComponentSerializer.plainText()
 
-    override fun execute(source: CommandSourceStack, args: Array<out String>) {
-        val player = source.sender as? Player
-            ?: run { source.sender.sendMessage("§cこのコマンドはゲーム内から実行してください。"); return }
-        if (!player.hasPermission("oyasaimenu.admin")) { player.sendMessage(c("&c編集権限がありません。")); return }
+    override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<out String>): Boolean {
+        val player = sender as? Player
+            ?: run { sender.sendMessage("§cゲーム内から実行してください。"); return true }
+        if (!player.hasPermission("oyasaimenu.admin")) { player.sendMessage(c("&c編集権限がありません。")); return true }
         when (args.getOrNull(0)?.lowercase()) {
             "announce"  -> handleAnnounce(player, args.drop(1).toTypedArray())
             "shop"      -> handleShop(player, args.drop(1).toTypedArray())
             "whitelist" -> handleWhitelist(player, args.drop(1).toTypedArray())
             else        -> sendHelp(player)
         }
+        return true
     }
-
-    // ============================
-    // announce
-    // ============================
 
     private fun handleAnnounce(player: Player, args: Array<String>) {
         when (args.getOrNull(0)?.lowercase()) {
@@ -71,18 +61,14 @@ class MenuAdminCommand(private val plugin: OyasaiMenu) : BasicCommand {
             }
             else -> {
                 player.sendMessage(c("&b--- /menuedit announce ---"))
-                player.sendMessage(c("&f/menuedit announce title &7<テキスト|JSON>"))
-                player.sendMessage(c("&f/menuedit announce line &7<番号> <テキスト|JSON>"))
+                player.sendMessage(c("&f/menuedit announce title &7<テキスト/JSON>"))
+                player.sendMessage(c("&f/menuedit announce line &7<番号> <テキスト/JSON>"))
                 player.sendMessage(c("&f/menuedit announce remove-line &7<番号>"))
                 player.sendMessage(c("&f/menuedit announce book"))
                 player.sendMessage(c("&f/menuedit announce show"))
             }
         }
     }
-
-    // ============================
-    // shop
-    // ============================
 
     private fun handleShop(player: Player, args: Array<String>) {
         val categoryId = args.getOrNull(0)?.lowercase()
@@ -112,9 +98,7 @@ class MenuAdminCommand(private val plugin: OyasaiMenu) : BasicCommand {
                 if (plugin.shopLoader.addItem(categoryId, matName.lowercase(), buyPrice, sellPrice) != null) {
                     plugin.shopLoader.reload()
                     player.sendMessage(c("&a'$categoryId' に ${matName.lowercase()} を追加しました。"))
-                } else {
-                    player.sendMessage(c("&cカテゴリ '$categoryId' が見つかりません。"))
-                }
+                } else player.sendMessage(c("&cカテゴリ '$categoryId' が見つかりません。"))
             }
             "remove" -> {
                 if (category == null) { player.sendMessage(c("&cカテゴリ '$categoryId' が見つかりません。")); return }
@@ -130,10 +114,6 @@ class MenuAdminCommand(private val plugin: OyasaiMenu) : BasicCommand {
         }
     }
 
-    // ============================
-    // whitelist
-    // ============================
-
     private fun handleWhitelist(player: Player, args: Array<String>) {
         when (args.getOrNull(0)?.lowercase()) {
             "list" -> {
@@ -146,28 +126,19 @@ class MenuAdminCommand(private val plugin: OyasaiMenu) : BasicCommand {
             }
             "add" -> {
                 val target = args.getOrNull(1)?.lowercase()
-                if (target != "hand" && target != "h") {
-                    player.sendMessage(c("&c使い方: /menuedit whitelist add hand/h <売値>")); return
-                }
+                if (target != "hand") { player.sendMessage(c("&c使い方: /menuedit whitelist add hand <売値>")); return }
                 val sellPrice = args.getOrNull(2)?.toDoubleOrNull()
-                if (sellPrice == null || sellPrice <= 0) {
-                    player.sendMessage(c("&c売値に正の数値を指定してください。")); return
-                }
+                if (sellPrice == null || sellPrice <= 0) { player.sendMessage(c("&c売値に正の数値を指定してください。")); return }
                 val item = player.inventory.itemInMainHand
                 if (item.type.isAir) { player.sendMessage(c("&c手にアイテムを持ってください。")); return }
-
                 val hasCustomName = item.itemMeta?.hasDisplayName() == true
-                if (!hasCustomName) {
-                    player.sendMessage(c("&e注意: カスタム名のないアイテムです。バニラ名アイテムはショップ登録だけで売れます。"))
-                }
-
+                if (!hasCustomName) player.sendMessage(c("&e注意: カスタム名のないアイテムです。バニラ名アイテムはショップ登録だけで売れます。"))
                 val err = plugin.sellWhitelistManager.addEntry(item, sellPrice)
                 if (err != null) {
                     player.sendMessage(c("&c追加失敗: $err"))
                 } else {
                     val dispName = if (hasCustomName && item.itemMeta?.hasDisplayName() == true)
-                        plain.serialize(item.itemMeta!!.displayName()!!)
-                    else item.type.name.lowercase()
+                        plain.serialize(item.itemMeta!!.displayName()!!) else item.type.name.lowercase()
                     player.sendMessage(c("&aホワイトリストに追加しました: &f$dispName &a売値: &f${sellPrice}"))
                     player.sendMessage(c("&7マテリアル: &f${item.type.name.lowercase()}  エンチャント: &f${item.itemMeta?.enchants?.size ?: 0}種"))
                 }
@@ -182,9 +153,8 @@ class MenuAdminCommand(private val plugin: OyasaiMenu) : BasicCommand {
             else -> {
                 player.sendMessage(c("&b--- /menuedit whitelist ---"))
                 player.sendMessage(c("&f/menuedit whitelist list &7— 一覧"))
-                player.sendMessage(c("&f/menuedit whitelist add hand|h &7<売値> — 手持ちアイテムを追加"))
+                player.sendMessage(c("&f/menuedit whitelist add hand &7<売値> — 手持ちアイテムを追加"))
                 player.sendMessage(c("&f/menuedit whitelist remove &7<番号> — 削除"))
-                player.sendMessage(c("&7比較: type / カスタム名 / エンチャント (耐久値は無視)"))
             }
         }
     }
@@ -204,7 +174,8 @@ class MenuAdminCommand(private val plugin: OyasaiMenu) : BasicCommand {
         }.getOrElse { trimmed }
     }
 
-    override fun suggest(source: CommandSourceStack, args: Array<out String>): List<String> {
+    override fun onTabComplete(sender: CommandSender, command: Command, alias: String, args: Array<out String>): List<String>? {
+        if (!sender.hasPermission("oyasaimenu.admin")) return emptyList()
         val prefix = args.lastOrNull() ?: ""
         return when {
             args.size <= 1 ->
@@ -225,7 +196,7 @@ class MenuAdminCommand(private val plugin: OyasaiMenu) : BasicCommand {
                     (1..size).map { it.toString() }
                 }
                 args[0].equals("shop", ignoreCase = true) -> listOf("list","add","remove")
-                args[0].equals("whitelist", ignoreCase = true) && args[1].equals("add", ignoreCase = true) -> listOf("hand","h")
+                args[0].equals("whitelist", ignoreCase = true) && args[1].equals("add", ignoreCase = true) -> listOf("hand")
                 args[0].equals("whitelist", ignoreCase = true) && args[1].equals("remove", ignoreCase = true) -> {
                     val size = plugin.sellWhitelistManager.getEntries().size
                     (1..size).map { it.toString() }

@@ -141,7 +141,6 @@ class ActionEngine(private val plugin: OyasaiMenu) {
             }
 
             ActionType.OPEN_INFO -> Bukkit.getScheduler().runTaskLater(plugin, Runnable {
-                // InfoEngine 廃止 → slot45 はナビバーで常時表示。ここでは root を開くだけ
                 plugin.menuEngine.openMenu(player, "root") }, 1L)
 
             ActionType.OPEN_CHANNEL -> Bukkit.getScheduler().runTaskLater(plugin, Runnable {

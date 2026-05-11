@@ -4,6 +4,7 @@ import com.github.sahyuya.oyasaiMenu.OyasaiMenu
 import com.github.sahyuya.oyasaiMenu.manager.EconomyManager
 import com.github.sahyuya.oyasaiMenu.manager.TokenCurrencyManager
 import com.github.sahyuya.oyasaiMenu.util.GuiUtil.comp
+import me.clip.placeholderapi.PlaceholderAPI
 import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.NamespacedKey
@@ -43,9 +44,6 @@ object NavBar {
             listOf("&7Wiki・Discord・WebMAP など", "&7各種リンクを表示します"))
     )
 
-    fun slotForPopup(popupId: String): Int =
-        entries.find { it.popupId == popupId }?.slot ?: -1
-
     /**
      * インベントリの下1列 (45〜53) にナビバーを描画する。
      * @param activeSlot 強調するスロット (46〜53)。-1 = 強調なし
@@ -63,7 +61,6 @@ object NavBar {
             meta.displayName(comp(entry.name))
 
             if (entry.slot == activeSlot) {
-                // アクティブ: エンチャントグロー + 「現在のメニュー」をlore先頭に追加
                 if (unbreaking != null) {
                     meta.addEnchant(unbreaking, 1, true)
                     meta.addItemFlags(ItemFlag.HIDE_ENCHANTS)
@@ -93,12 +90,18 @@ object NavBar {
         val meta  = skull.itemMeta as SkullMeta
         meta.owningPlayer = player
         meta.displayName(comp("&f${player.name}"))
+
+        // PlaceholderAPI 経由で %dp_level% を取得
+        val dpLevel = if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
+            runCatching { PlaceholderAPI.setPlaceholders(player, "%dp_level%") }.getOrElse { "---" }
+        } else "---"
+
         meta.lore(listOf(
-            comp("&7オンライン: &f${Bukkit.getOnlinePlayers().size}人"),
-            comp("&7TPS: &f${String.format("%.1f", Bukkit.getTPS()[0])}"),
-            comp("&7経験値 Lv: &f${player.level}"),
-            comp("&7所持金: &f${if (EconomyManager.isAvailable) EconomyManager.format(EconomyManager.getBalance(player)) else "---"}"),
-            comp("&7ポイント: &f${if (TokenCurrencyManager.isAvailable) "${TokenCurrencyManager.format(TokenCurrencyManager.getTokens(player))}P" else "---"}"),
+            comp("&7オンライン: &e${Bukkit.getOnlinePlayers().size}&f人"),
+            comp("&7TPS: &a${String.format("%.1f", Bukkit.getTPS()[0])}"),
+            comp("&7DP: &b$dpLevel"),
+            comp("&7所持金: &6${if (EconomyManager.isAvailable) EconomyManager.format(EconomyManager.getBalance(player)) else "---"}"),
+            comp("&7ポイント: &3${if (TokenCurrencyManager.isAvailable) "${TokenCurrencyManager.format(TokenCurrencyManager.getTokens(player))}&fP" else "---"}"),
             comp(""),
             comp("&eクリックで更新")
         ))

@@ -4,14 +4,13 @@ import com.github.sahyuya.oyasaiMenu.command.*
 import com.github.sahyuya.oyasaiMenu.engine.*
 import com.github.sahyuya.oyasaiMenu.loader.*
 import com.github.sahyuya.oyasaiMenu.manager.*
-import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerLoginEvent
+import org.bukkit.event.player.PlayerJoinEvent
 import org.bukkit.event.player.PlayerQuitEvent
 import org.bukkit.plugin.java.JavaPlugin
 
-@Suppress("UnstableApiUsage")
 class OyasaiMenu : JavaPlugin(), Listener {
 
     lateinit var menuLoader:       MenuLoader
@@ -65,22 +64,33 @@ class OyasaiMenu : JavaPlugin(), Listener {
         TokenCurrencyManager.init(this)
         CooldownManager.init(this)
 
-        lifecycleManager.registerEventHandler(LifecycleEvents.COMMANDS) { event ->
-            val reg = event.registrar()
-            reg.register("menu",       "メニューを開く",                listOf("mn"),       MenuCommand(this))
-            reg.register("menuedit",   "メニューを管理する",             emptyList(),       MenuAdminCommand(this))
-            reg.register("shop",       "ショップを開く",                 listOf("sh"),      ShopCommand(this))
-            reg.register("sell",       "アイテムを売却する",             emptyList(),       SellCommand(this))
-            reg.register("pointshop",      "ポイントショップを開く",          listOf("ps"),      PointShopCommand(this))
-            reg.register("macro",      "コマンドマクロを管理・実行する",  listOf("mc"),       MacroCommand(this))
-            reg.register("adminmenu",  "管理者メニューを開く",            listOf("admenu"),  AdminMenuCommand(this))
-            reg.register("oyasaimenu", "OyasaiMenu 管理コマンド",         emptyList(),      OyasaiMenuCommand(this))
-        }
+        // 公開コマンド
+        getCommand("menu")?.setExecutor(MenuCommand(this))
+        getCommand("menu")?.tabCompleter = MenuCommand(this)
+        getCommand("shop")?.setExecutor(ShopCommand(this))
+        getCommand("shop")?.tabCompleter = ShopCommand(this)
+        getCommand("pointshop")?.setExecutor(PointShopCommand(this))
+        getCommand("pointshop")?.tabCompleter = PointShopCommand(this)
+        getCommand("sell")?.setExecutor(SellCommand(this))
+        getCommand("sell")?.tabCompleter = SellCommand(this)
+        getCommand("macro")?.setExecutor(MacroCommand(this))
+        getCommand("macro")?.tabCompleter = MacroCommand(this)
+        // OP用コマンド
+        getCommand("adminmenu")?.setExecutor(AdminMenuCommand(this))
+        getCommand("adminmenu")?.tabCompleter = AdminMenuCommand(this)
+        getCommand("menuedit")?.setExecutor(MenuEditCommand(this))
+        getCommand("menuedit")?.tabCompleter = MenuEditCommand(this)
+        getCommand("oyasaimenu")?.setExecutor(OyasaiMenuCommand(this))
+        getCommand("oyasaimenu")?.tabCompleter = OyasaiMenuCommand(this)
 
         listOf(
-            menuEngine, popupMenuEngine,
-            shopEngine, sellEngine, pointShopEngine,
-            macroEngine, adminEngine,
+            menuEngine,
+            popupMenuEngine,
+            shopEngine,
+            sellEngine,
+            pointShopEngine,
+            macroEngine,
+            adminEngine,
             announcementManager,
             this
         ).forEach { server.pluginManager.registerEvents(it as org.bukkit.event.Listener, this) }
@@ -98,15 +108,26 @@ class OyasaiMenu : JavaPlugin(), Listener {
         logger.info("OyasaiMenu を無効化しました。")
     }
 
+    /** ログイン時: マクロデータをロードする */
     @EventHandler
     fun onPlayerLogin(event: PlayerLoginEvent) {
+        macroManager.loadPlayer(event.player.uniqueId)
+    }
+
+    /**
+     * 参加時: OP プレイヤーにテンプレートマクロを配布する。
+     *
+     * PlayerLoginEvent ではプレイヤーがまだ完全にサーバーへ参加していないため、
+     * PlayerJoinEvent (参加完了後) で配布し、20 tick (1秒) 後に実行することで
+     * プレイヤーオブジェクトが確実に初期化された状態で処理を行う。
+     */
+    @EventHandler
+    fun onPlayerJoin(event: PlayerJoinEvent) {
         val player = event.player
-        macroManager.loadPlayer(player.uniqueId)
-        // OPプレイヤーにはテンプレートマクロを配布する
         if (player.isOp) {
             server.scheduler.runTaskLater(this, Runnable {
                 macroManager.distributeOpTemplates(player)
-            }, 1L)
+            }, 20L)
         }
     }
 

@@ -4,30 +4,33 @@ import com.github.sahyuya.oyasaiMenu.OyasaiMenu
 import com.github.sahyuya.oyasaiMenu.manager.CooldownManager
 import com.github.sahyuya.oyasaiMenu.manager.EconomyManager
 import com.github.sahyuya.oyasaiMenu.util.GuiUtil.c
-import io.papermc.paper.command.brigadier.BasicCommand
-import io.papermc.paper.command.brigadier.CommandSourceStack
+import org.bukkit.command.Command
+import org.bukkit.command.CommandExecutor
+import org.bukkit.command.CommandSender
+import org.bukkit.command.TabCompleter
 import org.bukkit.entity.Player
 
-@Suppress("UnstableApiUsage")
-class SellCommand(private val plugin: OyasaiMenu) : BasicCommand {
+class SellCommand(private val plugin: OyasaiMenu) : CommandExecutor, TabCompleter {
 
-    override fun execute(source: CommandSourceStack, args: Array<out String>) {
-        val player = source.sender as? Player
-            ?: run { source.sender.sendMessage("§cゲーム内から実行してください。"); return }
+    override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<out String>): Boolean {
+        val player = sender as? Player
+            ?: run { sender.sendMessage("§cゲーム内から実行してください。"); return false }
         if (!player.hasPermission("oyasaimenu.use")) {
-            player.sendMessage("§cこのコマンドを使う権限がありません。"); return
+            player.sendMessage(c("&cこのコマンドを使う権限がありません。")); return false
         }
         if (player.gameMode == org.bukkit.GameMode.CREATIVE) {
-            player.sendMessage("§cクリエイティブモードでは売却できません。"); return
+            player.sendMessage(c("&cクリエイティブモードでは売却できません。")); return false
         }
         when (args.getOrNull(0)?.lowercase()) {
             "hand" -> sellHand(player)
             "all"  -> sellAll(player)
             else   -> plugin.sellEngine.openSellMenu(player)
         }
+        return true
     }
 
-    override fun suggest(source: CommandSourceStack, args: Array<out String>): List<String> {
+    override fun onTabComplete(sender: CommandSender, command: Command, alias: String, args: Array<out String>): List<String>? {
+        if (!sender.hasPermission("oyasaimenu.use")) return emptyList()
         if (args.size > 1) return emptyList()
         val prefix = args.firstOrNull() ?: ""
         return listOf("hand", "all").filter { it.startsWith(prefix, ignoreCase = true) }

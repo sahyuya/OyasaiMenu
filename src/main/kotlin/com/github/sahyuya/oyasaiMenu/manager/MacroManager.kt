@@ -15,16 +15,20 @@ import java.util.UUID
  * ■ スラッシュの扱い
  *   保存時: ユーザーが入力した内容をそのまま保存 (スラッシュを除去しない)
  *   実行時: performCommand() の前に先頭スラッシュを1つだけ除去する
- *     → `warp home`   → performCommand("warp home")   → /warp home
- *     → `/warp home`  → performCommand("warp home")   → /warp home
- *     → `//wand`      → performCommand("/wand")        → //wand (FAWE)
+ *     → `warp home`  → performCommand("warp home")  → /warp home
+ *     → `/warp home` → performCommand("warp home")  → /warp home
+ *     → `//wand`     → performCommand("/wand")       → //wand (FAWE)
  *
- * ■ リソースファイル
- *   op-macro-templates.yml は JAR 内リソースから saveResource() で展開する。
- *   コード内にデフォルト内容を書かない。
+ * ■ コマンドホワイトリスト
+ *   command-whitelist の各エントリはコマンド名 または パーミッションノード。
+ *   - コマンド名一致 (例: "warp") → そのコマンドを許可
+ *   - パーミッションノード (例: "fawe.select") → そのパーミッションを持つ
+ *     プレイヤーはホワイトリスト検査を全スキップ
+ *   - リストが空の場合は全コマンドを許可
  *
- * ■ 権限別マクロ最大数
- *   config.yml の macro.max-per-permission で権限ごとに設定可能。
+ * ■ コマンド数制限
+ *   macro.max-commands-per-macro (デフォルト 20) で1マクロあたりの上限を設定。
+ *   macro.max-commands-per-permission で権限別に上限を上書き可能。
  */
 class MacroManager(private val plugin: OyasaiMenu) {
 
@@ -85,15 +89,24 @@ class MacroManager(private val plugin: OyasaiMenu) {
     // 権限別マクロ最大数
     // ============================
 
-    /**
-     * プレイヤーの権限に応じたマクロ最大数を返す。
-     * 複数権限を持つ場合は最大値を採用する。
-     */
     fun getMaxMacros(player: Player): Int {
         val default     = plugin.config.getInt("macro.max-per-player", 10)
         val permSection = plugin.config.getConfigurationSection("macro.max-per-permission")
             ?: return default
+        return permSection.getKeys(false)
+            .filter { player.hasPermission(it) }
+            .mapNotNull { permSection.getInt(it, 0).takeIf { v -> v > 0 } }
+            .maxOrNull() ?: default
+    }
 
+    // ============================
+    // 権限別コマンド最大数
+    // ============================
+
+    fun getMaxCommands(player: Player): Int {
+        val default     = plugin.config.getInt("macro.max-commands-per-macro", 20)
+        val permSection = plugin.config.getConfigurationSection("macro.max-commands-per-permission")
+            ?: return default
         return permSection.getKeys(false)
             .filter { player.hasPermission(it) }
             .mapNotNull { permSection.getInt(it, 0).takeIf { v -> v > 0 } }
@@ -108,21 +121,26 @@ class MacroManager(private val plugin: OyasaiMenu) {
     fun getMacro(uuid: UUID, id: String): PlayerMacro? = cache[uuid.toString()]?.find { it.id == id }
 
     /**
-     * @param maxOverride null の場合は config のデフォルト値を使用
+     * @param maxOverride  null の場合は config のデフォルト値を使用
+     * @param player       ホワイトリスト検査とコマンド数上限確認に使用 (null = 検査スキップ)
      */
-    fun addMacro(uuid: UUID, macro: PlayerMacro, maxOverride: Int? = null): String? {
+    fun addMacro(uuid: UUID, macro: PlayerMacro, maxOverride: Int? = null, player: Player? = null): String? {
         val list = cache.getOrPut(uuid.toString()) { mutableListOf() }
         val max  = maxOverride ?: plugin.config.getInt("macro.max-per-player", 10)
         if (list.size >= max) return "マクロの上限数 ($max) に達しています。"
         if (list.any { it.id == macro.id }) return "ID '${macro.id}' は既に存在します。"
-        validateCommands(macro.commands)?.let { return it }
+        validateCommands(macro.commands, player)?.let { return it }
         list.add(macro); savePlayer(uuid); return null
     }
 
-    fun updateMacro(uuid: UUID, updated: PlayerMacro): String? {
+    /**
+     * @param player  ホワイトリスト検査とコマンド数上限確認に使用 (null = 検査スキップ)
+     */
+    fun updateMacro(uuid: UUID, updated: PlayerMacro, player: Player? = null): String? {
         val list = cache[uuid.toString()] ?: return "データ未ロード。"
         val idx  = list.indexOfFirst { it.id == updated.id }
         if (idx < 0) return "ID '${updated.id}' が見つかりません。"
+        validateCommands(updated.commands, player)?.let { return it }
         list[idx] = updated; savePlayer(uuid); return null
     }
 
@@ -131,12 +149,11 @@ class MacroManager(private val plugin: OyasaiMenu) {
         if (removed) savePlayer(uuid); return removed
     }
 
-    fun setCommandAtIndex(uuid: UUID, macroId: String, index: Int, value: String): String? {
+    fun setCommandAtIndex(uuid: UUID, macroId: String, index: Int, value: String, player: Player? = null): String? {
         val macro = getMacro(uuid, macroId) ?: return "マクロ '$macroId' が見つかりません。"
-        validateCommands(listOf(value))?.let { return it }
-        val cmd = if (isWaitCommand(value)) value.trim() else value.trim()
         val commands = macro.commands.toMutableList()
-        if (index >= commands.size) commands.add(cmd) else commands[index] = cmd
+        if (index >= commands.size) commands.add(value.trim()) else commands[index] = value.trim()
+        validateCommands(commands, player)?.let { return it }
         return updateMacro(uuid, macro.copy(commands = commands))
     }
 
@@ -153,11 +170,6 @@ class MacroManager(private val plugin: OyasaiMenu) {
     // OPテンプレートマクロ配布
     // ============================
 
-    /**
-     * OPプレイヤーにテンプレートマクロを配布する。
-     * op-macro-templates.yml は JAR リソースから saveResource() で展開する。
-     * 既に同じIDのマクロを持っているプレイヤーには再配布しない。
-     */
     fun distributeOpTemplates(player: Player) {
         if (!player.isOp) return
 
@@ -222,9 +234,9 @@ class MacroManager(private val plugin: OyasaiMenu) {
      *
      * ■ スラッシュの扱い (実行時)
      *   performCommand() に渡す前に先頭スラッシュを1つだけ除去する。
-     *     `warp home`  → performCommand("warp home")  → /warp home
      *     `/warp home` → performCommand("warp home")  → /warp home
      *     `//wand`     → performCommand("/wand")       → //wand (FAWE)
+     *     `warp home`  → performCommand("warp home")  → /warp home
      */
     private fun executeCommandsFrom(player: Player, commands: List<String>, index: Int) {
         if (index >= commands.size) return
@@ -237,6 +249,7 @@ class MacroManager(private val plugin: OyasaiMenu) {
                 executeCommandsFrom(player, commands, index + 1)
             }, delayTick)
         } else {
+            // 先頭スラッシュを1つだけ除去して実行
             val execCmd = if (cmd.startsWith("/")) cmd.removePrefix("/") else cmd
             player.performCommand(execCmd)
             executeCommandsFrom(player, commands, index + 1)
@@ -247,13 +260,44 @@ class MacroManager(private val plugin: OyasaiMenu) {
     // バリデーション
     // ============================
 
-    private fun validateCommands(commands: List<String>): String? {
+    /**
+     * コマンドリストを検証する。
+     *
+     * @param commands 検証するコマンドリスト
+     * @param player   権限チェックとコマンド数上限確認に使用 (null = スキップ)
+     * @return エラーメッセージ (問題なければ null)
+     *
+     * ■ ホワイトリストエントリの種別
+     *   - "warp" のようなコマンド名 → ベース名一致で許可
+     *   - "fawe.select" のようなパーミッションノード (ドット含む) →
+     *     プレイヤーがそのパーミッションを持つ場合はホワイトリスト検査を全スキップ
+     */
+    private fun validateCommands(commands: List<String>, player: Player? = null): String? {
+        // コマンド数上限チェック
+        if (player != null) {
+            val maxCmds = getMaxCommands(player)
+            if (commands.size > maxCmds) return "コマンド数の上限 ($maxCmds) に達しています。"
+        }
+
         val whitelist = plugin.config.getStringList("macro.command-whitelist")
         if (whitelist.isEmpty()) return null
+
+        // パーミッションノードによる全体バイパス
+        if (player != null) {
+            val hasBypass = whitelist.any { entry ->
+                entry.contains('.') && !entry.contains(' ') && player.hasPermission(entry)
+            }
+            if (hasBypass) return null
+        }
+
+        // コマンド名一致チェック
+        // ベース名抽出: 先頭のスラッシュを最大2つ除去してコマンド名だけ取り出す
         val blocked = commands.filter { !isWaitCommand(it) }.filter { cmd ->
-            // 先頭スラッシュを除去してコマンド名を抽出
-            val base = cmd.removePrefix("/").removePrefix("/").split(" ").first()
-            whitelist.none { it.equals(base, ignoreCase = true) }
+            val base = cmd.trimStart().removePrefix("/").removePrefix("/").split(" ").first().lowercase()
+            whitelist.none { entry ->
+                // コマンド名としてのエントリのみ比較 (ドットを含まないか、スラッシュ始まりの場合)
+                !entry.contains('.') && entry.equals(base, ignoreCase = true)
+            }
         }
         if (blocked.isNotEmpty()) return "許可されていないコマンド: ${blocked.joinToString()}"
         return null

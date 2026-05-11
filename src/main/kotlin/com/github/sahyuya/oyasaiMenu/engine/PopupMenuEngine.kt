@@ -28,10 +28,12 @@ import org.bukkit.inventory.ItemStack
  * PopupMenuEngine
  *
  * 変更点:
- *   - fallbackIcon: op_only=true の非OPプレイヤーに指定のアイコンを表示
- *     fallback_icon 未指定なら fillGlass のガラスが埋める (従来通り)
- *   - AIR スロット: fillGlass 後にクリアして空欄を維持
- *   - opOnly のクリックは非OP側で無視
+ *   - fallback_lore: 権限なしプレイヤー向けの説明文を表示
+ *   - fallback_icon: AIR → 強制的に空欄 (fillGlass でもガラスを置かない)
+ *     null    → fillGlass に任せる (デフォルトのガラス)
+ *     AIR     → 強制空欄 (fillGlass 後にクリア)
+ *     その他  → そのマテリアルを fallback_name / fallback_lore で表示
+ *   - isVisibleTo(): PopupItem に委譲して required_permission / op_only を統一判定
  */
 class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
 
@@ -54,18 +56,30 @@ class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
     private fun buildInventory(player: Player, def: PopupMenuDef): Inventory {
         val inv = Bukkit.createInventory(null, 54, comp(def.title))
 
+        // 表示条件を満たさないスロットのうち fallback_icon = AIR のもの → fillGlass 後に強制クリア
+        val forceEmptySlots = mutableSetOf<Int>()
+
         def.items.forEach { item ->
             if (item.slot !in 0..44) return@forEach
-            if (item.icon.isAir) return@forEach
+            if (item.icon.isAir) return@forEach  // icon 自体が AIR → fillGlass → 後でクリア
 
-            if (item.opOnly && !player.isOp) {
+            if (!item.isVisibleTo(player)) {
+                // 表示条件を満たさないプレイヤーへの fallback 処理
                 val fb = item.fallbackIcon
-                if (fb != null && !fb.isAir) {
-                    val fbStack = ItemStack(fb)
-                    val fbMeta  = fbStack.itemMeta!!
-                    fbMeta.displayName(comp(item.fallbackName))
-                    fbStack.itemMeta = fbMeta
-                    inv.setItem(item.slot, fbStack)
+                when {
+                    fb == null       -> { /* 未指定 → fillGlass に任せる */ }
+                    fb == Material.AIR -> { forceEmptySlots.add(item.slot) /* 強制空欄 */ }
+                    else             -> {
+                        // fallback_icon のマテリアルで表示 (fallback_name / fallback_lore を適用)
+                        val fbStack = ItemStack(fb)
+                        val fbMeta  = fbStack.itemMeta!!
+                        fbMeta.displayName(comp(item.fallbackName))
+                        if (item.fallbackLore.isNotEmpty()) {
+                            fbMeta.lore(item.fallbackLore.map { comp(it) })
+                        }
+                        fbStack.itemMeta = fbMeta
+                        inv.setItem(item.slot, fbStack)
+                    }
                 }
                 return@forEach
             }
@@ -76,10 +90,13 @@ class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
         // 空きスロットをガラスで埋める
         NavBar.fillGlass(inv, def.glass)
 
-        // icon=AIR のスロットのみクリア (opOnly スロットはガラスのまま)
+        // icon = AIR のスロットをクリア (元から空欄にしたいスロット)
         def.items.filter { it.slot in 0..44 && it.icon.isAir }.forEach {
             inv.setItem(it.slot, null)
         }
+
+        // fallback_icon = AIR のスロットも強制クリア (fillGlass で上書きされた場合も対応)
+        forceEmptySlots.forEach { inv.setItem(it, null) }
 
         NavBar.apply(inv, player, plugin, def.navActive)
         return inv
@@ -124,7 +141,7 @@ class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
                 val def  = plugin.popupMenuLoader.getPopup(popupId) ?: return
                 val item = def.items.find { it.slot == slot } ?: return
                 if (item.icon.isAir) return
-                if (item.opOnly && !player.isOp) return
+                if (!item.isVisibleTo(player)) return  // 表示条件を満たさないプレイヤーはクリック無効
                 executeActions(player, item.actions)
             }
         }

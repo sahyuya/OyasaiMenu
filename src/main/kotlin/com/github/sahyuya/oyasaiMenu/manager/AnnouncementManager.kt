@@ -18,9 +18,8 @@ import java.util.UUID
  * AnnouncementManager
  *
  * 変更点:
- *   - announcements.yml が存在しない場合は saveResource() で JAR リソースから展開する
- *   - Kotlin 文字列によるデフォルト内容の書き込みを廃止
- *   - 署名・Done どちらでも本を削除する
+ *   - pendingBookEditors を MutableMap<UUID, Int> に変更し、渡した本のスロットを保存
+ *   - removeBook: スロット指定で直接削除し、delay を 3L に延長して確実性を向上
  */
 class AnnouncementManager(private val plugin: OyasaiMenu) : Listener {
 
@@ -29,7 +28,8 @@ class AnnouncementManager(private val plugin: OyasaiMenu) : Listener {
     private var currentTitle: String             = "&f✦ ようこそ！"
     private var currentBody: MutableList<String> = mutableListOf()
 
-    private val pendingBookEditors: MutableSet<UUID> = mutableSetOf()
+    /** UUID → 渡した本のスロット番号 */
+    private val pendingBookEditors: MutableMap<UUID, Int> = mutableMapOf()
     private val plainText = PlainTextComponentSerializer.plainText()
 
     // ============================
@@ -86,10 +86,13 @@ class AnnouncementManager(private val plugin: OyasaiMenu) : Listener {
             splitIntoPages(currentBody.joinToString("\n"), 254).forEach { meta.addPage(it) }
         }
         book.itemMeta = meta
+
         val slot = player.inventory.firstEmpty().takeIf { it >= 0 } ?: 8
         player.inventory.setItem(slot, book)
         player.inventory.heldItemSlot = slot
-        pendingBookEditors.add(player.uniqueId)
+        // スロット番号を保存して確実に本を削除できるようにする
+        pendingBookEditors[player.uniqueId] = slot
+
         player.sendMessage(c("&b=== お知らせ本エディタ ==="))
         player.sendMessage(c("&7各行 → Lore 1行  Done か署名で確定 (本は消えます)"))
         player.sendMessage(c("&7現在のタイトル: &f${currentTitle.replace('&', '\u00A7')}"))
@@ -102,7 +105,7 @@ class AnnouncementManager(private val plugin: OyasaiMenu) : Listener {
     @EventHandler
     fun onPlayerEditBook(event: PlayerEditBookEvent) {
         val uuid = event.player.uniqueId
-        if (!pendingBookEditors.remove(uuid)) return
+        val slot = pendingBookEditors.remove(uuid) ?: return
 
         val meta    = event.newBookMeta
         val newBody = meta.pages()
@@ -122,16 +125,29 @@ class AnnouncementManager(private val plugin: OyasaiMenu) : Listener {
         saveToFile(); broadcastRefresh()
         event.player.sendMessage(c("&aお知らせを更新しました。Lore &f${currentBody.size}&a行"))
 
-        // 署名・Done どちらでも本を削除する
+        // スロット指定で確実に本を削除。delay を 3L に延ばして Paper の処理完了後に実行
+        removeBook(event.player, slot)
+    }
+
+    /**
+     * 指定スロットの本をインベントリから確実に削除する。
+     * Paper の書籍イベント処理完了を待つため 3 tick 後に実行。
+     */
+    private fun removeBook(player: Player, slot: Int) {
         plugin.server.scheduler.runTaskLater(plugin, Runnable {
-            val inv = event.player.inventory
-            for (i in 0 until inv.size) {
-                val item = inv.getItem(i) ?: continue
+            val atSlot = player.inventory.getItem(slot)
+            if (atSlot != null && (atSlot.type == Material.WRITABLE_BOOK || atSlot.type == Material.WRITTEN_BOOK)) {
+                player.inventory.setItem(slot, null)
+                return@Runnable
+            }
+            // フォールバック: インベントリ全体をスキャン
+            for (i in 0 until player.inventory.size) {
+                val item = player.inventory.getItem(i) ?: continue
                 if (item.type == Material.WRITABLE_BOOK || item.type == Material.WRITTEN_BOOK) {
-                    inv.setItem(i, null); break
+                    player.inventory.setItem(i, null); break
                 }
             }
-        }, 1L)
+        }, 3L)
     }
 
     // ============================
@@ -159,20 +175,12 @@ class AnnouncementManager(private val plugin: OyasaiMenu) : Listener {
     // ファイル解決
     // ============================
 
-    /**
-     * announcements.yml を返す。
-     * 存在しない場合は JAR リソースから saveResource() で展開する。
-     * それでも存在しない場合は null を返す。
-     */
     private fun resolveFile(): File? {
         plugin.dataFolder.also { if (!it.exists()) it.mkdirs() }
         val file = File(plugin.dataFolder, "announcements.yml")
         if (file.exists()) return file
-
-        // JAR リソースから展開
         runCatching { plugin.saveResource("announcements.yml", false) }
             .onFailure { plugin.logger.warning("announcements.yml のリソース展開失敗: ${it.message}") }
-
         return if (file.exists()) file else null
     }
 
