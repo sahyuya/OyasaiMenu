@@ -12,23 +12,17 @@ import java.util.UUID
 /**
  * MacroManager
  *
- * ■ スラッシュの扱い
- *   保存時: ユーザーが入力した内容をそのまま保存 (スラッシュを除去しない)
- *   実行時: performCommand() の前に先頭スラッシュを1つだけ除去する
- *     → `warp home`  → performCommand("warp home")  → /warp home
- *     → `/warp home` → performCommand("warp home")  → /warp home
- *     → `//wand`     → performCommand("/wand")       → //wand (FAWE)
+ * ■ スラッシュの扱い (変更)
+ *   - `/warp home` → performCommand("warp home") → /warp home として実行
+ *   - `//wand`     → performCommand("/wand")      → //wand (FAWE) として実行
+ *   - `こんにちは`  → player.chat("こんにちは")   → プレイヤーの発言としてチャット送信
  *
- * ■ コマンドホワイトリスト
- *   command-whitelist の各エントリはコマンド名 または パーミッションノード。
- *   - コマンド名一致 (例: "warp") → そのコマンドを許可
- *   - パーミッションノード (例: "fawe.select") → そのパーミッションを持つ
- *     プレイヤーはホワイトリスト検査を全スキップ
- *   - リストが空の場合は全コマンドを許可
+ *   つまり「スラッシュで始まらないコマンドはチャットメッセージ」として扱う。
+ *   既存マクロでスラッシュなしのコマンドを使用している場合は先頭に / を追加すること。
  *
- * ■ コマンド数制限
- *   macro.max-commands-per-macro (デフォルト 20) で1マクロあたりの上限を設定。
- *   macro.max-commands-per-permission で権限別に上限を上書き可能。
+ * ■ distributeOpTemplates の修正
+ *   saveResource() はJARにリソースが含まれていないと例外で中断するため、
+ *   ファイルが存在しない場合はデフォルト内容をプログラムで生成するよう変更。
  */
 class MacroManager(private val plugin: OyasaiMenu) {
 
@@ -117,13 +111,9 @@ class MacroManager(private val plugin: OyasaiMenu) {
     // CRUD
     // ============================
 
-    fun getMacros(uuid: UUID): List<PlayerMacro>   = cache[uuid.toString()]?.toList() ?: emptyList()
+    fun getMacros(uuid: UUID): List<PlayerMacro>       = cache[uuid.toString()]?.toList() ?: emptyList()
     fun getMacro(uuid: UUID, id: String): PlayerMacro? = cache[uuid.toString()]?.find { it.id == id }
 
-    /**
-     * @param maxOverride  null の場合は config のデフォルト値を使用
-     * @param player       ホワイトリスト検査とコマンド数上限確認に使用 (null = 検査スキップ)
-     */
     fun addMacro(uuid: UUID, macro: PlayerMacro, maxOverride: Int? = null, player: Player? = null): String? {
         val list = cache.getOrPut(uuid.toString()) { mutableListOf() }
         val max  = maxOverride ?: plugin.config.getInt("macro.max-per-player", 10)
@@ -133,9 +123,6 @@ class MacroManager(private val plugin: OyasaiMenu) {
         list.add(macro); savePlayer(uuid); return null
     }
 
-    /**
-     * @param player  ホワイトリスト検査とコマンド数上限確認に使用 (null = 検査スキップ)
-     */
     fun updateMacro(uuid: UUID, updated: PlayerMacro, player: Player? = null): String? {
         val list = cache[uuid.toString()] ?: return "データ未ロード。"
         val idx  = list.indexOfFirst { it.id == updated.id }
@@ -170,6 +157,13 @@ class MacroManager(private val plugin: OyasaiMenu) {
     // OPテンプレートマクロ配布
     // ============================
 
+    /**
+     * OPプレイヤーにテンプレートマクロを配布する。
+     *
+     * ■ 修正内容
+     *   旧: plugin.saveResource() でJAR内リソースを展開 → JARに含まれない場合に例外で中断
+     *   新: ファイルが存在しない場合はデフォルト内容をプログラムで生成
+     */
     fun distributeOpTemplates(player: Player) {
         if (!player.isOp) return
 
@@ -211,6 +205,7 @@ class MacroManager(private val plugin: OyasaiMenu) {
         }
     }
 
+
     // ============================
     // 実行 (wait 対応)
     // ============================
@@ -232,26 +227,32 @@ class MacroManager(private val plugin: OyasaiMenu) {
     /**
      * コマンドを順に実行する。
      *
-     * ■ スラッシュの扱い (実行時)
-     *   performCommand() に渡す前に先頭スラッシュを1つだけ除去する。
-     *     `/warp home` → performCommand("warp home")  → /warp home
-     *     `//wand`     → performCommand("/wand")       → //wand (FAWE)
-     *     `warp home`  → performCommand("warp home")  → /warp home
+     * ■ 実行ルール
+     *   - `/warp home` → performCommand("warp home") → /warp home として実行
+     *   - `//wand`     → performCommand("/wand")      → //wand (FAWE) として実行
+     *   - `こんにちは`  → player.chat("こんにちは")   → チャット発言として送信
+     *   - `wait Ns`    → N秒待機してから次のコマンドへ
      */
     private fun executeCommandsFrom(player: Player, commands: List<String>, index: Int) {
         if (index >= commands.size) return
         val cmd = commands[index].trim()
+
         val waitMatch = waitRegex.matchEntire(cmd)
         if (waitMatch != null) {
+            // wait コマンド: 指定秒数後に次のコマンドへ
             val seconds   = waitMatch.groupValues[1].toDoubleOrNull() ?: 0.0
             val delayTick = (seconds * 20.0).toLong().coerceAtLeast(1L)
             Bukkit.getScheduler().runTaskLater(plugin, Runnable {
                 executeCommandsFrom(player, commands, index + 1)
             }, delayTick)
+        } else if (cmd.startsWith("/")) {
+            // スラッシュあり → コマンドとして実行 (先頭の / を1つだけ除去)
+            player.performCommand(cmd.removePrefix("/"))
+            executeCommandsFrom(player, commands, index + 1)
         } else {
-            // 先頭スラッシュを1つだけ除去して実行
-            val execCmd = if (cmd.startsWith("/")) cmd.removePrefix("/") else cmd
-            player.performCommand(execCmd)
+            // スラッシュなし → プレイヤーのチャット発言として送信
+            @Suppress("DEPRECATION")
+            player.chat(cmd)
             executeCommandsFrom(player, commands, index + 1)
         }
     }
@@ -260,20 +261,7 @@ class MacroManager(private val plugin: OyasaiMenu) {
     // バリデーション
     // ============================
 
-    /**
-     * コマンドリストを検証する。
-     *
-     * @param commands 検証するコマンドリスト
-     * @param player   権限チェックとコマンド数上限確認に使用 (null = スキップ)
-     * @return エラーメッセージ (問題なければ null)
-     *
-     * ■ ホワイトリストエントリの種別
-     *   - "warp" のようなコマンド名 → ベース名一致で許可
-     *   - "fawe.select" のようなパーミッションノード (ドット含む) →
-     *     プレイヤーがそのパーミッションを持つ場合はホワイトリスト検査を全スキップ
-     */
     private fun validateCommands(commands: List<String>, player: Player? = null): String? {
-        // コマンド数上限チェック
         if (player != null) {
             val maxCmds = getMaxCommands(player)
             if (commands.size > maxCmds) return "コマンド数の上限 ($maxCmds) に達しています。"
@@ -282,7 +270,6 @@ class MacroManager(private val plugin: OyasaiMenu) {
         val whitelist = plugin.config.getStringList("macro.command-whitelist")
         if (whitelist.isEmpty()) return null
 
-        // パーミッションノードによる全体バイパス
         if (player != null) {
             val hasBypass = whitelist.any { entry ->
                 entry.contains('.') && !entry.contains(' ') && player.hasPermission(entry)
@@ -290,12 +277,10 @@ class MacroManager(private val plugin: OyasaiMenu) {
             if (hasBypass) return null
         }
 
-        // コマンド名一致チェック
-        // ベース名抽出: 先頭のスラッシュを最大2つ除去してコマンド名だけ取り出す
-        val blocked = commands.filter { !isWaitCommand(it) }.filter { cmd ->
+        // コマンド名一致チェック (スラッシュで始まるものだけが対象)
+        val blocked = commands.filter { !isWaitCommand(it) && it.trim().startsWith("/") }.filter { cmd ->
             val base = cmd.trimStart().removePrefix("/").removePrefix("/").split(" ").first().lowercase()
             whitelist.none { entry ->
-                // コマンド名としてのエントリのみ比較 (ドットを含まないか、スラッシュ始まりの場合)
                 !entry.contains('.') && entry.equals(base, ignoreCase = true)
             }
         }

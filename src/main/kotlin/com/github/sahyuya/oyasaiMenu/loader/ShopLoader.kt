@@ -180,11 +180,11 @@ class ShopLoader(private val plugin: OyasaiMenu) {
 
     private fun loadCustomItems() {
         customItems.clear()
-        val file = File(plugin.dataFolder, "items/custom_items.yml").also {
+        val file = File(plugin.dataFolder, "menus/shop/custom_items.yml").also {
             it.parentFile.mkdirs()
             if (!it.exists()) {
-                plugin.saveResource("items/custom_items.yml", false)
-                plugin.logger.info("items/custom_items.yml を初期配置しました。")
+                plugin.saveResource("menus/shop/custom_items.yml", false)
+                plugin.logger.info("menus/shop/custom_items.yml を初期配置しました。")
             }
         }
         val yaml = YamlConfiguration.loadConfiguration(file)
@@ -213,7 +213,10 @@ class ShopLoader(private val plugin: OyasaiMenu) {
 
     private fun resolveEnchantment(name: String): Enchantment? {
         val key = legacyEnchantNames[name.uppercase()] ?: name.lowercase()
-        return runCatching { Registry.ENCHANTMENT.get(NamespacedKey.minecraft(key)) }.getOrElse {
+        @Suppress("DEPRECATION")
+        return runCatching {
+            Registry.ENCHANTMENT.get(NamespacedKey.minecraft(key))
+        }.getOrElse {
             @Suppress("DEPRECATION")
             Enchantment.getByName(name.uppercase())
         }
@@ -230,7 +233,7 @@ class ShopLoader(private val plugin: OyasaiMenu) {
         val buyPrice  = parts[1].toDoubleOrNull() ?: return null
         val sellPrice = parts[2].toDoubleOrNull() ?: return null
         val def = customItems[key] ?: run {
-            plugin.logger.warning("カスタムアイテム未定義: $key ($catId) — items/custom_items.yml に追加してください"); return null
+            plugin.logger.warning("カスタムアイテム未定義: $key ($catId) — menus/shop/custom_items.yml に追加してください"); return null
         }
         return ShopItem(material = def.material, materialId = key, buyPrice = buyPrice, sellPrice = sellPrice,
             customName = def.name.takeIf { it.isNotEmpty() }, customLore = def.lore, enchantments = def.enchantments)

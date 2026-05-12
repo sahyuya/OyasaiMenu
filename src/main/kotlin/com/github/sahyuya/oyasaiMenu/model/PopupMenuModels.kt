@@ -31,6 +31,7 @@ data class PopupItem(
     val key: String,
     val slot: Int,
     val icon: Material,
+    val itemSpec: PopupItemSpec?,
     val customTexture: String?,
     val name: String,
     val lore: List<String>,
@@ -39,6 +40,7 @@ data class PopupItem(
     val opOnly: Boolean = false,
     val requiredPermission: String? = null,
     val fallbackIcon: Material? = null,
+    val fallbackItemSpec: PopupItemSpec? = null,
     val fallbackTexture: String? = null,
     val fallbackName: String = " ",
     val fallbackLore: List<String> = emptyList(),
@@ -73,3 +75,9 @@ enum class PopupActionType {
     OPEN_MENU,
     CLOSE
 }
+
+data class PopupItemSpec(
+    val material: Material,
+    val amount: Int = 1,
+    val blockState: Map<String, String> = emptyMap()
+)

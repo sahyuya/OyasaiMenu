@@ -27,7 +27,7 @@ commands:
     permission: oyasaimenu.use
   macro:
     description: マクロを管理する
-    aliases: [mc]
+    aliases: [mcr]
     permission: oyasaimenu.macro
 
   adminmenu:

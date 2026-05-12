@@ -178,7 +178,12 @@ items:
     name: "&aサバイバルモード"
     lore: ["&7/gms"]
     required_permission: "essentials.gamemode.survival"
-    fallback_icon: GLASS_PANE
+    fallback_item:
+      id: COPPER_GOLEM_STATUE
+      count: 1
+      components:
+        "minecraft:block_state":
+          copper_golem_pose: star
     fallback_name: "&aサバイバルモード"
     fallback_lore: [ "&cゲームモードを切り替える権限を持っていません" ]
     actions:
@@ -190,7 +195,12 @@ items:
     name: "&eクリエイティブモード"
     lore: ["&7/gmc"]
     required_permission: "essentials.gamemode.creative"
-    fallback_icon: GLASS_PANE
+    fallback_item:
+      id: EXPOSED_COPPER_GOLEM_STATUE
+      count: 1
+      components:
+        "minecraft:block_state":
+          copper_golem_pose: star
     fallback_name: "&eクリエイティブモード"
     fallback_lore: ["&c※ポイント購入 or 匠以上のランクが必要"]
     actions:
@@ -202,7 +212,12 @@ items:
     name: "&7スペクテイターモード"
     lore: ["&7/gmsp"]
     required_permission: "essentials.gamemode.spectator"
-    fallback_icon: GLASS_PANE
+    fallback_item:
+      id: WEATHERED_COPPER_GOLEM_STATUE
+      count: 1
+      components:
+        "minecraft:block_state":
+          copper_golem_pose: star
     fallback_name: "&7スペクテイターモード"
     fallback_lore: [ "&c※建築士以上のランクが必要" ]
     actions:

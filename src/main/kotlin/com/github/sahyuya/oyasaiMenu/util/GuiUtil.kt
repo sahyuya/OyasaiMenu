@@ -16,6 +16,11 @@ object GuiUtil {
         return item
     }
     fun colorizeComponent(text: String): Component = LegacyComponentSerializer.legacyAmpersand()
-        .deserialize(text).decoration(TextDecoration.ITALIC, false); fun comp(text: String) = colorizeComponent(text)
-    fun colorize(text: String): String = text.replace('&', '\u00A7'); fun c(text: String) = colorize(text)
+        .deserialize(text).decoration(TextDecoration.ITALIC, false)
+
+    fun comp(text: String): Component = colorizeComponent(text)
+
+    fun colorize(text: String): String = text.replace('&', '\u00A7')
+
+    fun c(text: String): String = colorize(text)
 }

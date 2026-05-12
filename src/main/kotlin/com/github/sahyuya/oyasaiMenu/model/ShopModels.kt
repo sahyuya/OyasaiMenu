@@ -44,7 +44,5 @@ data class PlayerShopState(
     val categoryId: String,
     val page: Int = 0,
     val quantity: ShopQuantity = ShopQuantity.ONE,
-    val isSellMode: Boolean = false,
-    /** true のとき左クリック=売却・右クリック=購入 (通常と反転) */
     val isInverted: Boolean = false
 )

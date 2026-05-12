@@ -3,6 +3,7 @@ package com.github.sahyuya.oyasaiMenu.loader
 import com.github.sahyuya.oyasaiMenu.OyasaiMenu
 import com.github.sahyuya.oyasaiMenu.model.*
 import org.bukkit.Material
+import org.bukkit.configuration.ConfigurationSection
 import org.bukkit.configuration.file.YamlConfiguration
 import java.io.File
 
@@ -65,7 +66,8 @@ class PopupMenuLoader(private val plugin: OyasaiMenu) {
                 return@forEach
             }
 
-            val iconName = sec.getString("icon", "STONE")?.uppercase() ?: "STONE"
+            val itemSpec = parseItemSpec(sec.getConfigurationSection("item"), id, key)
+            val iconName = sec.getString("icon", itemSpec?.material?.name ?: "STONE")?.uppercase() ?: "STONE"
             val texture  = sec.getString("texture")
             val icon: Material = when {
                 iconName == "CUSTOM_HEAD" -> Material.PLAYER_HEAD
@@ -93,6 +95,7 @@ class PopupMenuLoader(private val plugin: OyasaiMenu) {
             val fallbackTexture = sec.getString("fallback_texture")
             val fallbackName    = sec.getString("fallback_name", " ") ?: " "
             val fallbackLore    = sec.getStringList("fallback_lore")
+            val fallbackItemSpec = parseItemSpec(sec.getConfigurationSection("fallback_item"), id, key)
 
             val actions = mutableListOf<PopupAction>()
             @Suppress("UNCHECKED_CAST")
@@ -110,6 +113,7 @@ class PopupMenuLoader(private val plugin: OyasaiMenu) {
                 key                = key,
                 slot               = slot,
                 icon               = icon,
+                itemSpec           = itemSpec,
                 customTexture      = texture,
                 name               = name,
                 lore               = lore,
@@ -118,6 +122,7 @@ class PopupMenuLoader(private val plugin: OyasaiMenu) {
                 opOnly             = opOnly,
                 requiredPermission = requiredPermission,
                 fallbackIcon       = fallbackIcon,
+                fallbackItemSpec   = fallbackItemSpec,
                 fallbackTexture    = fallbackTexture,
                 fallbackName       = fallbackName,
                 fallbackLore       = fallbackLore,
@@ -126,6 +131,32 @@ class PopupMenuLoader(private val plugin: OyasaiMenu) {
         }
 
         return PopupMenuDef(id = id, title = title, glass = glass, navActive = navActive, items = items)
+    }
+
+    private fun parseItemSpec(sec: ConfigurationSection?, popupId: String, itemKey: String): PopupItemSpec? {
+        if (sec == null) return null
+        val id = sec.getString("id") ?: sec.getString("material") ?: run {
+            plugin.logger.warning("Popup $popupId '$itemKey': item.id が未指定です。")
+            return null
+        }
+        val materialName = id.removePrefix("minecraft:").uppercase()
+        val material = runCatching { Material.valueOf(materialName) }.getOrElse {
+            plugin.logger.warning("Popup $popupId '$itemKey': 不明な item.id '$id'")
+            return null
+        }
+        val blockState = linkedMapOf<String, String>()
+        val components = sec.getConfigurationSection("components")
+        val blockStateSec = components?.getConfigurationSection("minecraft:block_state")
+            ?: components?.getConfigurationSection("block_state")
+            ?: sec.getConfigurationSection("block_state")
+        blockStateSec?.getKeys(false)?.forEach { stateKey ->
+            blockState[stateKey] = blockStateSec.getString(stateKey) ?: return@forEach
+        }
+        return PopupItemSpec(
+            material = material,
+            amount = sec.getInt("count", sec.getInt("amount", 1)).coerceIn(1, 64),
+            blockState = blockState
+        )
     }
 
     private fun parseAction(map: Map<String, Any>): PopupAction? = when {

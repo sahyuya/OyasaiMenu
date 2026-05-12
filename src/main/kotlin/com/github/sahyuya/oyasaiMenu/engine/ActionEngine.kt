@@ -3,14 +3,12 @@ package com.github.sahyuya.oyasaiMenu.engine
 import com.github.sahyuya.oyasaiMenu.OyasaiMenu
 import com.github.sahyuya.oyasaiMenu.model.ActionType
 import com.github.sahyuya.oyasaiMenu.model.MenuAction
-import com.github.sahyuya.oyasaiMenu.model.MenuItemDefinition
 import com.github.sahyuya.oyasaiMenu.model.PlayerMenuState
 import com.github.sahyuya.oyasaiMenu.util.GuiUtil.c
 import com.github.sahyuya.oyasaiMenu.util.GuiUtil.comp
 import net.luckperms.api.LuckPermsProvider
 import org.bukkit.Bukkit
 import org.bukkit.entity.Player
-import org.bukkit.inventory.ItemStack
 
 /**
  * ActionEngine
@@ -98,7 +96,7 @@ class ActionEngine(private val plugin: OyasaiMenu) {
             }
 
             ActionType.BROADCAST -> {
-                Bukkit.broadcastMessage(c(applyPlaceholders(player, action.getString("text"))))
+                Bukkit.broadcast(comp(applyPlaceholders(player, action.getString("text"))))
             }
 
             ActionType.PLACEHOLDER_TEXT -> {
@@ -160,10 +158,6 @@ class ActionEngine(private val plugin: OyasaiMenu) {
 
             ActionType.UNKNOWN ->
                 plugin.logger.warning("未知のアクション: player=${player.name}")
-
-            // ★ else ブランチ: 将来の enum 追加時のコンパイルエラー防止
-            //   新アクション追加時は上記に明示的ブランチを追加すること
-            else -> plugin.logger.warning("未処理のアクションタイプ: ${action.type} (player=${player.name})")
         }
     }
 

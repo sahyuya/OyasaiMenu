@@ -20,7 +20,6 @@ data class MenuItemDefinition(
     val lore: List<String> = emptyList(),
     val actions: List<MenuAction> = emptyList(),
     val permission: String? = null,
-    val template: String? = null,
     val customTexture: String? = null
 )
 
@@ -55,15 +54,11 @@ data class MenuAction(
     val fail: List<MenuAction> = emptyList()
 ) {
     fun getString(key: String, default: String = ""): String = params[key]?.toString() ?: default
-    fun getInt(key: String, default: Int = 0): Int = params[key]?.toString()?.toIntOrNull() ?: default
-    fun getBoolean(key: String, default: Boolean = false): Boolean = params[key]?.toString()?.toBooleanStrictOrNull() ?: default
 }
 
 data class PlayerMenuState(
     val menuId: String,
-    val page: Int = 0,
-    val isEditing: Boolean = false,
-    val selectedItemKey: String? = null
+    val page: Int = 0
 )
 
 data class PlayerMacro(

@@ -19,7 +19,7 @@ class OyasaiMenuCommand(private val plugin: OyasaiMenu) : CommandExecutor, TabCo
                 sender.sendMessage(c("&aOyasaiMenu をリロードしました。"))
             }
             else -> {
-                sender.sendMessage(c("&b&lOyasaiMenu &7v${plugin.description.version}"))
+                sender.sendMessage(c("&b&lOyasaiMenu &7v${plugin.pluginMeta.version}"))
                 sender.sendMessage(c("&7/oyasaimenu reload &8— &7設定と YAML を再読み込みします。"))
             }
         }

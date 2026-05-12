@@ -6,6 +6,8 @@ import com.github.sahyuya.oyasaiMenu.model.*
 import com.github.sahyuya.oyasaiMenu.util.CustomHead
 import com.github.sahyuya.oyasaiMenu.util.GuiUtil.c
 import com.github.sahyuya.oyasaiMenu.util.GuiUtil.comp
+import io.papermc.paper.datacomponent.DataComponentTypes
+import io.papermc.paper.datacomponent.item.TooltipDisplay
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.event.ClickEvent
 import net.kyori.adventure.text.event.HoverEvent
@@ -23,6 +25,7 @@ import org.bukkit.event.inventory.InventoryCloseEvent
 import org.bukkit.inventory.Inventory
 import org.bukkit.inventory.ItemFlag
 import org.bukkit.inventory.ItemStack
+import org.bukkit.inventory.meta.BlockDataMeta
 
 /**
  * PopupMenuEngine
@@ -58,11 +61,22 @@ class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
 
         def.items.forEach { item ->
             if (item.slot !in 0..44) return@forEach
-            if (item.icon.isAir) return@forEach
+            if (item.icon.isAir && item.itemSpec == null) return@forEach
 
             if (!item.isVisibleTo(player)) {
                 val fb = item.fallbackIcon
                 when {
+                    item.fallbackItemSpec != null -> {
+                        val fbStack = buildBaseItemStack(item.fallbackItemSpec, item.fallbackTexture)
+                        val fbMeta = fbStack.itemMeta!!
+                        fbMeta.displayName(comp(item.fallbackName))
+                        if (item.fallbackLore.isNotEmpty()) {
+                            fbMeta.lore(item.fallbackLore.map { comp(it) })
+                        }
+                        fbMeta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_ADDITIONAL_TOOLTIP)
+                        fbStack.itemMeta = fbMeta
+                        inv.setItem(item.slot, fbStack)
+                    }
                     fb == null         -> { /* 未指定 → fillGlass に任せる */ }
                     fb == Material.AIR -> { forceEmptySlots.add(item.slot) }
                     else               -> {
@@ -78,7 +92,7 @@ class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
                         if (item.fallbackLore.isNotEmpty()) {
                             fbMeta.lore(item.fallbackLore.map { comp(it) })
                         }
-                        fbMeta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES)
+                        fbMeta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_ADDITIONAL_TOOLTIP)
                         fbStack.itemMeta = fbMeta
                         inv.setItem(item.slot, fbStack)
                     }
@@ -93,7 +107,7 @@ class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
         NavBar.fillGlass(inv, def.glass)
 
         // icon = AIR のスロットをクリア
-        def.items.filter { it.slot in 0..44 && it.icon.isAir }.forEach {
+        def.items.filter { it.slot in 0..44 && it.icon.isAir && it.itemSpec == null }.forEach {
             inv.setItem(it.slot, null)
         }
         forceEmptySlots.forEach { inv.setItem(it, null) }
@@ -103,19 +117,47 @@ class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
     }
 
     private fun buildItemStack(item: PopupItem): ItemStack {
-        val stack = when {
+        val stack = item.itemSpec?.let { buildBaseItemStack(it, item.customTexture) } ?: when {
             item.icon == Material.PLAYER_HEAD && item.customTexture != null -> CustomHead.get(item.customTexture)
             else -> ItemStack(item.icon)
         }
         val meta = stack.itemMeta ?: return stack
         if (item.name.isNotEmpty()) meta.displayName(comp(item.name))
         if (item.lore.isNotEmpty()) meta.lore(item.lore.map { comp(it) })
-        meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES)
+        meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_ADDITIONAL_TOOLTIP)
         if (item.enchanted) {
-            val unbreaking = runCatching { Registry.ENCHANTMENT.get(NamespacedKey.minecraft("unbreaking")) }.getOrNull()
+            @Suppress("DEPRECATION")
+            val unbreaking = runCatching {
+                Registry.ENCHANTMENT.get(NamespacedKey.minecraft("unbreaking"))
+            }.getOrNull()
             if (unbreaking != null) { meta.addEnchant(unbreaking, 1, true); meta.addItemFlags(ItemFlag.HIDE_ENCHANTS) }
         }
         stack.itemMeta = meta; return stack
+    }
+
+    private fun buildBaseItemStack(spec: PopupItemSpec, customTexture: String?): ItemStack {
+        val stack = when {
+            spec.material == Material.PLAYER_HEAD && customTexture != null -> CustomHead.get(customTexture)
+            else -> ItemStack(spec.material, spec.amount)
+        }
+        if (spec.blockState.isNotEmpty()) {
+            val meta = stack.itemMeta as? BlockDataMeta ?: return stack
+            val blockState = spec.blockState.entries.joinToString(",") { (key, value) -> "$key=$value" }
+            val data = runCatching { Bukkit.createBlockData(spec.material, "[$blockState]") }.getOrElse {
+                plugin.logger.warning("Popup item '${spec.material.name}': block_state の適用に失敗しました: ${it.message}")
+                return stack
+            }
+            meta.setBlockData(data)
+            meta.addItemFlags(ItemFlag.HIDE_ADDITIONAL_TOOLTIP)
+            stack.itemMeta = meta
+            stack.setData(
+                DataComponentTypes.TOOLTIP_DISPLAY,
+                TooltipDisplay.tooltipDisplay()
+                    .addHiddenComponents(DataComponentTypes.BLOCK_DATA)
+                    .build()
+            )
+        }
+        return stack
     }
 
     @EventHandler
@@ -141,7 +183,7 @@ class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
             slot in 0..44 -> {
                 val def  = plugin.popupMenuLoader.getPopup(popupId) ?: return
                 val item = def.items.find { it.slot == slot } ?: return
-                if (item.icon.isAir) return
+                if (item.icon.isAir && item.itemSpec == null) return
                 if (!item.isVisibleTo(player)) {
                     if (item.fallbackActions.isNotEmpty()) {
                         executeActions(player, item.fallbackActions)
@@ -172,12 +214,6 @@ class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
         val needsCloseFirst = actions.any {
             it.type in setOf(
                 PopupActionType.CLOSE,
-                PopupActionType.OPEN_POPUP,
-                PopupActionType.OPEN_SHOP,
-                PopupActionType.OPEN_SELL,
-                PopupActionType.OPEN_MACRO,
-                PopupActionType.OPEN_POINT_SHOP,
-                PopupActionType.OPEN_MENU,
                 PopupActionType.SUGGEST_COMMAND,
                 PopupActionType.OP_PLAYER_CMD
             )

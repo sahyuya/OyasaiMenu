@@ -93,7 +93,7 @@ class OyasaiMenu : JavaPlugin(), Listener {
             adminEngine,
             announcementManager,
             this
-        ).forEach { server.pluginManager.registerEvents(it as org.bukkit.event.Listener, this) }
+        ).forEach { server.pluginManager.registerEvents(it, this) }
 
         logger.info(
             "OyasaiMenu 起動完了 | メニュー:${menuLoader.getMenuCount()} " +

@@ -1,4 +1,4 @@
-# items/custom_items.yml
+# menus/shop/custom_items.yml
 #
 # shops.yml で "$キー buyPrice sellPrice" と書いたときに参照されるカスタムアイテム定義。
 #

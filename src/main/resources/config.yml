@@ -1,7 +1,7 @@
 # OyasaiMenu メインコンフィグ config.yml
 
 menu:
-  default: root\
+  default: root
 
 macro:
   max-per-player: 10
@@ -14,7 +14,7 @@ macro:
     navis.white: 30
 
   # 1マクロあたりの最大コマンド数 (デフォルト)
-  max-commands-per-macro: 20
+  max-commands-per-macro: 10
 
   # 権限ごとの1マクロあたり最大コマンド数。複数権限を持つ場合は最大値が採用される。
   max-commands-per-permission:

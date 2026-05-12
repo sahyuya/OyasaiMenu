@@ -2,6 +2,7 @@ package com.github.sahyuya.oyasaiMenu.manager
 
 import com.github.sahyuya.oyasaiMenu.OyasaiMenu
 import com.github.sahyuya.oyasaiMenu.util.GuiUtil.c
+import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import org.bukkit.Material
 import org.bukkit.configuration.file.YamlConfiguration
@@ -76,14 +77,14 @@ class AnnouncementManager(private val plugin: OyasaiMenu) : Listener {
         val book = ItemStack(Material.WRITABLE_BOOK)
         val meta = book.itemMeta as BookMeta
         if (currentBody.isEmpty()) {
-            meta.addPage(
+            meta.addPages(Component.text(
                 "ここにお知らせの内容を書いてください。\n" +
-                "改行ごとに Lore の1行になります。\n\n" +
-                "Done のみ → Lore を更新 (本は消えます)\n" +
-                "署名して確定 → 署名名がタイトルになります (本は消えます)"
-            )
+                    "改行ごとに Lore の1行になります。\n\n" +
+                    "Done のみ → Lore を更新 (本は消えます)\n" +
+                    "署名して確定 → 署名名がタイトルになります (本は消えます)"
+            ))
         } else {
-            splitIntoPages(currentBody.joinToString("\n"), 254).forEach { meta.addPage(it) }
+            splitIntoPages(currentBody.joinToString("\n"), 254).forEach { meta.addPages(Component.text(it)) }
         }
         book.itemMeta = meta
 

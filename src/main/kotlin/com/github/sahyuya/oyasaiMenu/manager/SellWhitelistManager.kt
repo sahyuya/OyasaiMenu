@@ -2,11 +2,13 @@ package com.github.sahyuya.oyasaiMenu.manager
 
 import com.github.sahyuya.oyasaiMenu.OyasaiMenu
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
+import org.bukkit.Color
 import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.inventory.ItemStack
 import org.bukkit.inventory.meta.BookMeta
 import org.bukkit.inventory.meta.Damageable
 import org.bukkit.inventory.meta.EnchantmentStorageMeta
+import org.bukkit.inventory.meta.ItemMeta
 import org.bukkit.inventory.meta.PotionMeta
 import java.io.File
 import java.util.Base64
@@ -92,7 +94,7 @@ entries: []
             // 記入済みの本 (WRITTEN_BOOK) は title または pages があればカスタム扱い
             if (meta.hasTitle() || meta.pageCount > 0) return true
         }
-        if (meta.hasCustomModelData()) return true
+        if (meta.customModelDataSnapshot() != null) return true
         return false
     }
 
@@ -246,7 +248,7 @@ entries: []
             if (aStored.storedEnchants != bStored.storedEnchants) return false
         }
 
-        // ★ 本のコンテンツ比較 (WRITTEN_BOOK / WRITABLE_BOOK)
+        // 本のコンテンツ比較 (WRITTEN_BOOK / WRITABLE_BOOK)
         val aBook = ameta as? BookMeta
         val bBook = bmeta as? BookMeta
         if ((aBook == null) != (bBook == null)) return false
@@ -261,12 +263,10 @@ entries: []
             if (aBook.pageCount != bBook.pageCount) return false
         }
 
-        // ★ カスタムモデルデータ
-        val aCmd = if (ameta.hasCustomModelData()) ameta.customModelData else -1
-        val bCmd = if (bmeta.hasCustomModelData()) bmeta.customModelData else -1
-        if (aCmd != bCmd) return false
+        // カスタムモデルデータ
+        if (ameta.customModelDataSnapshot() != bmeta.customModelDataSnapshot()) return false
 
-        // ★ ポーション効果 (ポーション系)
+        // ポーション効果 (ポーション系)
         val aPotion = ameta as? PotionMeta
         val bPotion = bmeta as? PotionMeta
         if ((aPotion == null) != (bPotion == null)) return false
@@ -283,11 +283,30 @@ entries: []
     // ============================
 
     /** アイテムの表示名を取得する (BookMeta の title も考慮) */
-    private fun resolveDisplayName(item: ItemStack, meta: org.bukkit.inventory.meta.ItemMeta?): String {
+    private fun resolveDisplayName(item: ItemStack, meta: ItemMeta?): String {
         if (meta == null) return item.type.name.lowercase()
         if (meta.hasDisplayName()) return plain.serialize(meta.displayName()!!)
         if (meta is BookMeta && meta.hasTitle()) return meta.title ?: item.type.name.lowercase()
         return item.type.name.lowercase()
+    }
+
+    private data class CustomModelDataSnapshot(
+        val floats: List<Float>,
+        val flags: List<Boolean>,
+        val strings: List<String>,
+        val colors: List<Color>
+    )
+
+    @Suppress("UnstableApiUsage")
+    private fun ItemMeta.customModelDataSnapshot(): CustomModelDataSnapshot? {
+        if (!hasCustomModelDataComponent()) return null
+        val component = customModelDataComponent
+        return CustomModelDataSnapshot(
+            floats = component.floats.toList(),
+            flags = component.flags.toList(),
+            strings = component.strings.toList(),
+            colors = component.colors.toList()
+        )
     }
 
     private fun generateUniqueId(baseId: String, existing: Set<String>): String {

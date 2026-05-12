@@ -23,6 +23,8 @@ import org.bukkit.inventory.ItemStack
  * MenuEngine
  *
  * 変更点:
+ *   - openMenu() の root フォールバック判定を Elvis+if から when 式に変更
+ *       root.yml が存在しない・スキップされていても必ず rootFallback を使用する
  *   - staticCache (未使用) を削除
  *   - clearCache() はプレイヤー状態のみリセット
  */
@@ -38,16 +40,20 @@ class MenuEngine(private val plugin: OyasaiMenu) : Listener {
     )
 
     fun openMenu(player: Player, menuId: String, page: Int = 0) {
-        val menuDef = plugin.menuLoader.getMenu(menuId)
-            ?: if (menuId == "root") rootFallback
-            else {
+        val menuDef: MenuDefinition = if (menuId == "root") {
+        rootFallback
+    } else {
+        val loaded = plugin.menuLoader.getMenu(menuId)
+            ?: run {
                 player.sendMessage(c("&cメニューが見つかりません: $menuId"))
                 plugin.logger.warning("存在しないメニューID: $menuId (player=${player.name})")
                 return
             }
-        val inventory = buildInventory(player, menuDef, page)
+        loaded
+    }
+        val inventory = buildInventory(player, menuDef)
         player.openInventory(inventory)
-        playerStates[player.uniqueId.toString()] = PlayerMenuState(menuId = menuId, page = page, isEditing = false)
+        playerStates[player.uniqueId.toString()] = PlayerMenuState(menuId = menuId, page = page)
     }
 
     @EventHandler
@@ -76,7 +82,7 @@ class MenuEngine(private val plugin: OyasaiMenu) : Listener {
         playerStates.remove((event.player as? Player)?.uniqueId?.toString() ?: return)
     }
 
-    private fun buildInventory(player: Player, menuDef: MenuDefinition, page: Int): Inventory {
+    private fun buildInventory(player: Player, menuDef: MenuDefinition): Inventory {
         val title = applyPlaceholders(player, menuDef.title)
         val inv   = Bukkit.createInventory(null, menuDef.size, comp(title))
         menuDef.items.values.forEach { itemDef ->
@@ -126,6 +132,5 @@ class MenuEngine(private val plugin: OyasaiMenu) : Listener {
 
     fun getPlayerState(player: Player): PlayerMenuState? = playerStates[player.uniqueId.toString()]
 
-    /** キャッシュクリア (互換性維持のため残すが実質的にプレイヤー状態を解放するのみ) */
     fun clearCache() = playerStates.clear()
 }

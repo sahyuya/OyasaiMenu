@@ -165,7 +165,6 @@ class PointShopEngine(private val plugin: OyasaiMenu) : Listener {
     }
 
     private fun handleBack(player: Player) {
-        player.closeInventory()
-        Bukkit.getScheduler().runTaskLater(plugin, Runnable { plugin.popupMenuEngine.open(player, "shopindex") }, 1L)
+        plugin.popupMenuEngine.open(player, "shopindex")
     }
 }

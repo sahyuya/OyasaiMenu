@@ -51,6 +51,7 @@ object NavBar {
     fun apply(inv: Inventory, player: Player, plugin: OyasaiMenu, activeSlot: Int = -1) {
         inv.setItem(45, buildPlayerHead(player, plugin))
 
+        @Suppress("DEPRECATION")
         val unbreaking = runCatching {
             Registry.ENCHANTMENT.get(NamespacedKey.minecraft("unbreaking"))
         }.getOrNull()

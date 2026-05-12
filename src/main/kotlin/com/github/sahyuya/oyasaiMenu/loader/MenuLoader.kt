@@ -11,14 +11,17 @@ import java.io.File
  * MenuLoader
  *
  * 変更点:
+ *   - テンプレート機能 (templates.yml / extends キー) を完全削除
+ *       templates.yml は不要になったため安全に削除可能
+ *   - root.yml をスキャン対象から除外
+ *       root メニューは MenuEngine の rootFallback で処理するため不要
+ *       root.yml ファイルは安全に削除可能
  *   - icon: CUSTOM_HEAD → Material.PLAYER_HEAD + customTexture 保持
  *   - icon: AIR → Material.AIR として保持 (MenuEngine 側でスキップ)
- *   - root.yml は不要 (MenuEngine にフォールバック定義あり)
  */
 class MenuLoader(private val plugin: OyasaiMenu) {
 
-    private val menus:     MutableMap<String, MenuDefinition>     = mutableMapOf()
-    private val templates: MutableMap<String, MenuItemDefinition> = mutableMapOf()
+    private val menus: MutableMap<String, MenuDefinition> = mutableMapOf()
 
     fun loadAll() {
         menus.clear()
@@ -28,7 +31,7 @@ class MenuLoader(private val plugin: OyasaiMenu) {
             menusDir.mkdirs()
             plugin.logger.info("menus/ を作成しました。")
         }
-        scanDirectory(menusDir, "", setOf("shops.yml", "pointshop.yml"))
+        scanDirectory(menusDir, "", setOf("custom_items.yml", "shops.yml", "pointshop.yml"))
         plugin.logger.info("${menus.size} 個のメニューをロードしました。")
     }
 
@@ -60,23 +63,17 @@ class MenuLoader(private val plugin: OyasaiMenu) {
         val items = buildMap<String, MenuItemDefinition> {
             yaml.getConfigurationSection("items")?.getKeys(false)?.forEach { key ->
                 yaml.getConfigurationSection("items.$key")?.let { sec ->
-                    put(key, parseItemDefinition(sec, key))
+                    put(key, parseItemDefinition(sec))
                 }
             }
         }
         return MenuDefinition(id = menuId, title = title, size = size, items = items)
     }
 
-    private fun parseItemDefinition(section: ConfigurationSection, key: String): MenuItemDefinition {
-        val base: MenuItemDefinition = section.getString("extends")?.let { tid ->
-            templates[tid] ?: MenuItemDefinition(slot = 0).also {
-                plugin.logger.warning("テンプレート未定義: $tid (アイテム: $key)")
-            }
-        } ?: MenuItemDefinition(slot = 0)
-
-        val slot     = section.getInt("slot", base.slot)
-        val iconName = section.getString("icon", base.icon.name)?.uppercase() ?: base.icon.name
-        val customTexture: String? = section.getString("texture") ?: base.customTexture
+    private fun parseItemDefinition(section: ConfigurationSection): MenuItemDefinition {
+        val slot     = section.getInt("slot", 0)
+        val iconName = section.getString("icon", "STONE")?.uppercase() ?: "STONE"
+        val customTexture: String? = section.getString("texture")
 
         val icon: Material = when {
             iconName == "CUSTOM_HEAD" -> Material.PLAYER_HEAD
@@ -84,10 +81,10 @@ class MenuLoader(private val plugin: OyasaiMenu) {
             else -> runCatching { Material.valueOf(iconName) }.getOrElse { Material.STONE }
         }
 
-        val name       = section.getString("name", base.name) ?: base.name
-        val lore       = section.getStringList("lore").ifEmpty { base.lore }
-        val permission = section.getString("permission", base.permission)
-        val actions    = if (section.contains("actions")) parseActions(section, "actions") else base.actions
+        val name       = section.getString("name", "") ?: ""
+        val lore       = section.getStringList("lore")
+        val permission = section.getString("permission")
+        val actions    = if (section.contains("actions")) parseActions(section, "actions") else emptyList()
 
         return MenuItemDefinition(
             slot          = slot,
@@ -96,7 +93,6 @@ class MenuLoader(private val plugin: OyasaiMenu) {
             lore          = lore,
             actions       = actions,
             permission    = permission,
-            template      = section.getString("extends"),
             customTexture = customTexture
         )
     }
