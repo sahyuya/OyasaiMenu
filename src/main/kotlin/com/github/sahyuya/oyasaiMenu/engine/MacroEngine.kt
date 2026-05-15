@@ -28,7 +28,7 @@ import org.bukkit.inventory.Inventory
 import org.bukkit.inventory.ItemStack
 import org.bukkit.inventory.meta.BookMeta
 import org.bukkit.persistence.PersistentDataType
-import io.papermc.paper.event.player.AsyncChatEvent
+import org.bukkit.event.player.AsyncPlayerChatEvent
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.UUID
@@ -37,14 +37,11 @@ import java.util.UUID
  * MacroEngine
  *
  * ■ 変更点
- *   - マクロ実行本の追加
- *       詳細画面 slot 17「実行本を入手」ボタン → WRITTEN_BOOK を生成して配布
- *       本の PDC に macro_book_id を保存
- *       PlayerInteractEvent で右クリックを検知してマクロ実行
- *       スニーク+右クリックは通常通り本を開く
- *
- * ■ 新規マクロ作成フロー
- *   本エディタでコマンド入力 → 署名タイトルがマクロ名 / Done ならチャット入力 (20秒タイムアウト)
+ * - マクロ実行本の追加
+ * 詳細画面 slot 17「実行本を入手」ボタン → WRITTEN_BOOK を生成して配布
+ * 本の PDC に macro_book_id を保存
+ * PlayerInteractEvent で右クリックを検知してマクロ実行
+ * スニーク+右クリックは通常通り本を開く
  */
 class MacroEngine(private val plugin: OyasaiMenu) : Listener {
 
@@ -82,12 +79,15 @@ class MacroEngine(private val plugin: OyasaiMenu) : Listener {
     // 本エディタ — 新規作成
     // ============================
 
-    private fun openBookEditor(player: Player, macroId: String) {
+    private fun openBookEditor(player: Player, macroId: String, currentCommands: List<String>? = null, preferredSlot: Int? = null) {
         val book = ItemStack(Material.WRITABLE_BOOK)
         val meta = book.itemMeta as BookMeta
         val macro = plugin.macroManager.getMacro(player.uniqueId, macroId)
-        if (macro != null && macro.commands.isNotEmpty()) {
-            val content = macro.commands.joinToString("\n")
+
+        val commandsToUse = currentCommands ?: macro?.commands
+
+        if (!commandsToUse.isNullOrEmpty()) {
+            val content = commandsToUse.joinToString("\n")
             splitIntoPages(content, 254).forEach { meta.addPages(Component.text(it)) }
         } else {
             meta.addPages(Component.text(
@@ -99,11 +99,27 @@ class MacroEngine(private val plugin: OyasaiMenu) : Listener {
             ))
         }
         book.itemMeta = meta
-        val slot = player.inventory.firstEmpty().takeIf { it >= 0 } ?: 8
+
+        var slot = preferredSlot
+        if (slot != null) {
+            val currentItem = player.inventory.getItem(slot)
+            if (currentItem != null && !currentItem.type.isAir) {
+                slot = null
+            }
+        }
+        if (slot == null) {
+            slot = player.inventory.firstEmpty().takeIf { it >= 0 } ?: 8
+        }
+
         player.inventory.setItem(slot, book)
         player.inventory.heldItemSlot = slot
         bookEditorPending[player.uniqueId] = BookEditorState(macroId, slot)
-        player.sendMessage(c("&b=== マクロ本エディタ ===  完了 で確定"))
+
+        if (currentCommands == null) {
+            player.sendMessage(c("&b=== マクロ本エディタ ===  完了 で確定"))
+        } else {
+            player.sendMessage(c("&e内容を修正して再度 完了 を押してください。"))
+        }
     }
 
     // ============================
@@ -138,6 +154,9 @@ class MacroEngine(private val plugin: OyasaiMenu) : Listener {
         val err = plugin.macroManager.updateMacro(event.player.uniqueId, macro.copy(commands = commands), event.player)
         if (err != null) {
             event.player.sendMessage(c("&c$err"))
+            Bukkit.getScheduler().runTaskLater(plugin, Runnable {
+                openBookEditor(event.player, macroId, commands, edState.slot)
+            }, 5L)
         } else {
             event.player.sendMessage(c("&aマクロ「&e${macro.name}&a」を更新しました。&f${commands.size}&a個"))
             commands.take(5).forEachIndexed { i, cmd ->
@@ -146,7 +165,6 @@ class MacroEngine(private val plugin: OyasaiMenu) : Listener {
             if (commands.size > 5) event.player.sendMessage(c("  &7...他 ${commands.size - 5} 個"))
         }
     }
-
 
     private fun removeBook(player: Player, slot: Int) {
         plugin.server.scheduler.runTaskLater(plugin, Runnable {
@@ -168,11 +186,6 @@ class MacroEngine(private val plugin: OyasaiMenu) : Listener {
     // マクロ実行本
     // ============================
 
-    /**
-     * マクロ実行本 (WRITTEN_BOOK) を生成する。
-     * - 右クリックでマクロを実行
-     * - Shift+右クリックで通常通り本を開く
-     */
     private fun createMacroBook(player: Player, macro: PlayerMacro): ItemStack {
         val book = ItemStack(Material.WRITTEN_BOOK)
         val meta = (book.itemMeta as? BookMeta) ?: return book
@@ -180,7 +193,6 @@ class MacroEngine(private val plugin: OyasaiMenu) : Listener {
         meta.setAuthor(player.name)
         meta.generation = BookMeta.Generation.ORIGINAL
 
-        // 表示名・lore
         meta.displayName(comp("&6▶ &e${macro.name} &8(&7マクロ実行本&8)"))
         meta.lore(listOf(
             comp("&7右クリック &8→ &aマクロ実行"),
@@ -188,7 +200,6 @@ class MacroEngine(private val plugin: OyasaiMenu) : Listener {
             comp("&8ID: ${macro.id}")
         ))
 
-        // 1ページ目: 概要
         val overview = "▶ マクロ実行本\n\n" +
                 "名前: ${macro.name}\n" +
                 "コマンド: ${macro.commands.size}個\n\n" +
@@ -196,7 +207,6 @@ class MacroEngine(private val plugin: OyasaiMenu) : Listener {
                 "Shift+右クリック → 内容確認"
         meta.addPages(Component.text(overview))
 
-        // 2ページ目以降: コマンド一覧
         val commandLines = macro.commands.mapIndexed { i, cmd ->
             "${i + 1}. $cmd"
         }.joinToString("\n")
@@ -204,14 +214,12 @@ class MacroEngine(private val plugin: OyasaiMenu) : Listener {
             meta.addPages(Component.text(page))
         }
 
-        // PDC にマクロID を保存
         meta.persistentDataContainer.set(macroBoodIdKey, PersistentDataType.STRING, macro.id)
 
         book.itemMeta = meta
         return book
     }
 
-    /** マクロ実行本をプレイヤーに配布する */
     private fun giveMacroBook(player: Player, macro: PlayerMacro) {
         val book = createMacroBook(player, macro)
         val leftover = player.inventory.addItem(book)
@@ -224,10 +232,6 @@ class MacroEngine(private val plugin: OyasaiMenu) : Listener {
         player.playSound(player.location, org.bukkit.Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1.2f)
     }
 
-    /**
-     * WRITTEN_BOOK の右クリックを検知してマクロを実行する。
-     * Shift+右クリックは通常通り本を開く (キャンセルしない)。
-     */
     @EventHandler
     fun onPlayerInteract(event: PlayerInteractEvent) {
         if (event.action != Action.RIGHT_CLICK_AIR && event.action != Action.RIGHT_CLICK_BLOCK) return
@@ -236,14 +240,16 @@ class MacroEngine(private val plugin: OyasaiMenu) : Listener {
         val meta = item.itemMeta ?: return
         val macroId = meta.persistentDataContainer.get(macroBoodIdKey, PersistentDataType.STRING) ?: return
 
-        // スニーク中は通常の本として開く
         if (event.player.isSneaking) return
 
         event.isCancelled = true
         val player = event.player
         val err = plugin.macroManager.executeMacro(player, macroId)
+
         if (err != null) {
-            player.sendMessage(c("&c$err"))
+            if (err.isNotEmpty()) {
+                player.sendMessage(c("&c$err"))
+            }
         } else {
             val macroName = plugin.macroManager.getMacro(player.uniqueId, macroId)?.name ?: macroId
             player.sendMessage(c("&aマクロ「&e$macroName&a」を実行しました。"))
@@ -421,11 +427,11 @@ class MacroEngine(private val plugin: OyasaiMenu) : Listener {
     }
 
     @EventHandler(priority = EventPriority.LOWEST)
-    fun onChat(event: AsyncChatEvent) {
+    fun onChat(event: AsyncPlayerChatEvent) {
         val uuid  = event.player.uniqueId.toString()
         val state = chatInputPlayers[uuid] ?: return
         event.isCancelled = true
-        val input  = plainText.serialize(event.message()).trim()
+        val input  = event.message.trim()
         val player = event.player
 
         Bukkit.getScheduler().runTask(plugin, Runnable {
@@ -454,7 +460,6 @@ class MacroEngine(private val plugin: OyasaiMenu) : Listener {
                     } else {
                         val macro = plugin.macroManager.getMacro(player.uniqueId, state.macroId)
                         if (macro != null) {
-                            // 名前変更はコマンド変更なし。player は渡さなくてよい
                             plugin.macroManager.updateMacro(player.uniqueId, macro.copy(name = input))
                             player.sendMessage(c("&aマクロ名を変更しました: &f$input"))
                         }
@@ -477,7 +482,6 @@ class MacroEngine(private val plugin: OyasaiMenu) : Listener {
                     }
                     val macro = plugin.macroManager.getMacro(player.uniqueId, macroId)
                     if (macro != null) {
-                        // player を渡してコマンド数・ホワイトリストを検証
                         val err = plugin.macroManager.updateMacro(
                             player.uniqueId,
                             macro.copy(commands = macro.commands + input.trim()),
@@ -509,7 +513,6 @@ class MacroEngine(private val plugin: OyasaiMenu) : Listener {
             13 -> executeMacro(player, macro)
             15 -> handleShare(player, macro)
             16 -> {
-                // マクロ実行本を配布
                 player.closeInventory()
                 Bukkit.getScheduler().runTaskLater(plugin, Runnable { giveMacroBook(player, macro) }, 1L)
             }
@@ -573,8 +576,12 @@ class MacroEngine(private val plugin: OyasaiMenu) : Listener {
 
     private fun executeMacro(player: Player, macro: PlayerMacro) {
         val err = plugin.macroManager.executeMacro(player, macro.id)
-        if (err != null) player.sendMessage(c("&c$err"))
-        else {
+
+        if (err != null) {
+            if (err.isNotEmpty()) {
+                player.sendMessage(c("&c$err"))
+            }
+        } else {
             player.sendMessage(c("&aマクロ「&e${macro.name}&a」を実行しました。"))
             player.playSound(player.location, org.bukkit.Sound.UI_BUTTON_CLICK, 1f, 1.2f)
         }

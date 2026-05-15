@@ -6,6 +6,7 @@ menu:
 macro:
   max-per-player: 10
   cooldown-seconds: 3
+  min-delay-ticks: 1
 
   # 権限ごとのマクロ最大数。複数権限を持つ場合は最大値が採用される。
   max-per-permission:
@@ -22,12 +23,12 @@ macro:
     navis.blue: 20
     navis.white: 30
 
-  # コマンドホワイトリスト
+  # コマンドブラックリスト
   # - コマンド名 (例: "warp") → /warp ** を許可
   # - パーミッションノード (例: "fawe.select") → そのパーミッションを持つプレイヤーは
-  #   ホワイトリスト検査を全スキップ (FAWE 等を使えるプレイヤー向け)
-  # - 空リストにすると全コマンドを許可
-  command-whitelist:
+  #   ブラックリスト検査を全スキップ (FAWE 等を使えるプレイヤー向け)
+  # - 空リストにすると全コマンドを許可 (ブラックリスト無効)
+  command-blacklist:
     # - "warp"
     # - "home"
     # - "spawn"

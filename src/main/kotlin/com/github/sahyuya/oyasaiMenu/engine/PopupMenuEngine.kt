@@ -172,8 +172,7 @@ class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
         val popupId = activePlayers[uid] ?: return
         when {
             slot == 45 -> {
-                val def = plugin.popupMenuLoader.getPopup(popupId) ?: return
-                NavBar.apply(player.openInventory.topInventory, player, plugin, def.navActive)
+                player.performCommand("dp")
                 player.playSound(player.location, org.bukkit.Sound.UI_BUTTON_CLICK, 0.5f, 1f)
             }
             slot in 46..53 -> {

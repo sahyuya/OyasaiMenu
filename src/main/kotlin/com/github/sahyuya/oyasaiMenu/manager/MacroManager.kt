@@ -12,17 +12,17 @@ import java.util.UUID
 /**
  * MacroManager
  *
- * ■ スラッシュの扱い (変更)
- *   - `/warp home` → performCommand("warp home") → /warp home として実行
- *   - `//wand`     → performCommand("/wand")      → //wand (FAWE) として実行
- *   - `こんにちは`  → player.chat("こんにちは")   → プレイヤーの発言としてチャット送信
+ * ■ スラッシュの扱い
+ * - `/warp home` → performCommand("warp home") → /warp home として実行
+ * - `//wand`     → performCommand("/wand")      → //wand (FAWE) として実行
+ * - `こんにちは`  → player.chat("こんにちは")   → プレイヤーの発言としてチャット送信
  *
- *   つまり「スラッシュで始まらないコマンドはチャットメッセージ」として扱う。
- *   既存マクロでスラッシュなしのコマンドを使用している場合は先頭に / を追加すること。
+ * ■ wait バリデーションの改善
+ * エラーメッセージに秒数とtick数を両方表示し、入力例も添える。
+ * 秒→tick / tick→秒 の変換ヘルパーを専用関数に切り出してコードを整理した。
  *
- * ■ distributeOpTemplates の修正
- *   saveResource() はJARにリソースが含まれていないと例外で中断するため、
- *   ファイルが存在しない場合はデフォルト内容をプログラムで生成するよう変更。
+ * ■ distributeOpTemplates
+ * ファイルが存在しない場合はデフォルト内容をプログラムで生成。
  */
 class MacroManager(private val plugin: OyasaiMenu) {
 
@@ -157,13 +157,6 @@ class MacroManager(private val plugin: OyasaiMenu) {
     // OPテンプレートマクロ配布
     // ============================
 
-    /**
-     * OPプレイヤーにテンプレートマクロを配布する。
-     *
-     * ■ 修正内容
-     *   旧: plugin.saveResource() でJAR内リソースを展開 → JARに含まれない場合に例外で中断
-     *   新: ファイルが存在しない場合はデフォルト内容をプログラムで生成
-     */
     fun distributeOpTemplates(player: Player) {
         if (!player.isOp) return
 
@@ -205,7 +198,6 @@ class MacroManager(private val plugin: OyasaiMenu) {
         }
     }
 
-
     // ============================
     // 実行 (wait 対応)
     // ============================
@@ -217,7 +209,9 @@ class MacroManager(private val plugin: OyasaiMenu) {
         val cd    = macro.cooldownSeconds * 1000L
         if (now - (cooldowns[key] ?: 0L) < cd) {
             val remaining = (cd - (now - (cooldowns[key] ?: 0L))) / 1000 + 1
-            return "クールダウン中。あと ${remaining} 秒。"
+            val msg = c("&cクールダウン中。残り ${remaining} 秒")
+            player.sendActionBar(msg)
+            return ""
         }
         cooldowns[key] = now
         executeCommandsFrom(player, macro.commands, 0)
@@ -228,32 +222,35 @@ class MacroManager(private val plugin: OyasaiMenu) {
      * コマンドを順に実行する。
      *
      * ■ 実行ルール
-     *   - `/warp home` → performCommand("warp home") → /warp home として実行
-     *   - `//wand`     → performCommand("/wand")      → //wand (FAWE) として実行
-     *   - `こんにちは`  → player.chat("こんにちは")   → チャット発言として送信
-     *   - `wait Ns`    → N秒待機してから次のコマンドへ
+     * - `/warp home` → performCommand("warp home") → /warp home として実行
+     * - `//wand`     → performCommand("/wand")      → //wand (FAWE) として実行
+     * - `こんにちは`  → player.chat("こんにちは")   → チャット発言として送信
+     * - `wait Ns`    → N秒待機してから次のコマンドへ
      */
     private fun executeCommandsFrom(player: Player, commands: List<String>, index: Int) {
         if (index >= commands.size) return
         val cmd = commands[index].trim()
 
+        val minDelay = plugin.config.getLong("macro.min-delay-ticks", 1L).coerceAtLeast(1L)
+
         val waitMatch = waitRegex.matchEntire(cmd)
         if (waitMatch != null) {
-            // wait コマンド: 指定秒数後に次のコマンドへ
             val seconds   = waitMatch.groupValues[1].toDoubleOrNull() ?: 0.0
-            val delayTick = (seconds * 20.0).toLong().coerceAtLeast(1L)
+            val delayTick = secondsToTicks(seconds).coerceAtLeast(minDelay)
             Bukkit.getScheduler().runTaskLater(plugin, Runnable {
                 executeCommandsFrom(player, commands, index + 1)
             }, delayTick)
         } else if (cmd.startsWith("/")) {
-            // スラッシュあり → コマンドとして実行 (先頭の / を1つだけ除去)
             player.performCommand(cmd.removePrefix("/"))
-            executeCommandsFrom(player, commands, index + 1)
+            Bukkit.getScheduler().runTaskLater(plugin, Runnable {
+                executeCommandsFrom(player, commands, index + 1)
+            }, minDelay)
         } else {
-            // スラッシュなし → プレイヤーのチャット発言として送信
             @Suppress("DEPRECATION")
             player.chat(cmd)
-            executeCommandsFrom(player, commands, index + 1)
+            Bukkit.getScheduler().runTaskLater(plugin, Runnable {
+                executeCommandsFrom(player, commands, index + 1)
+            }, minDelay)
         }
     }
 
@@ -264,31 +261,58 @@ class MacroManager(private val plugin: OyasaiMenu) {
     private fun validateCommands(commands: List<String>, player: Player? = null): String? {
         if (player != null) {
             val maxCmds = getMaxCommands(player)
-            if (commands.size > maxCmds) return "コマンド数の上限 ($maxCmds) に達しています。"
+            if (commands.size > maxCmds) return "コマンド数の上限 ($maxCmds 個) に達しています。(現在: ${commands.size} 個)"
         }
 
-        val whitelist = plugin.config.getStringList("macro.command-whitelist")
-        if (whitelist.isEmpty()) return null
+        val minDelayTicks = plugin.config.getLong("macro.min-delay-ticks", 1L).coerceAtLeast(1L)
+
+        commands.forEach { cmd ->
+            val waitMatch = waitRegex.matchEntire(cmd.trim()) ?: return@forEach
+            val seconds   = waitMatch.groupValues[1].toDoubleOrNull() ?: return@forEach
+            val inputTicks = secondsToTicks(seconds)
+            if (inputTicks < minDelayTicks) {
+                val minSec  = formatSeconds(ticksToSeconds(minDelayTicks))
+                return "wait の最小値は ${minSec}s (${minDelayTicks}tick) です。(例: wait ${minSec}s)"
+            }
+        }
+
+        val blacklist = plugin.config.getStringList("macro.command-blacklist")
+        if (blacklist.isEmpty()) return null
 
         if (player != null) {
-            val hasBypass = whitelist.any { entry ->
+            val hasBypass = blacklist.any { entry ->
                 entry.contains('.') && !entry.contains(' ') && player.hasPermission(entry)
             }
             if (hasBypass) return null
         }
 
-        // コマンド名一致チェック (スラッシュで始まるものだけが対象)
         val blocked = commands.filter { !isWaitCommand(it) && it.trim().startsWith("/") }.filter { cmd ->
             val base = cmd.trimStart().removePrefix("/").removePrefix("/").split(" ").first().lowercase()
-            whitelist.none { entry ->
+            blacklist.any { entry ->
                 !entry.contains('.') && entry.equals(base, ignoreCase = true)
             }
         }
-        if (blocked.isNotEmpty()) return "許可されていないコマンド: ${blocked.joinToString()}"
+        if (blocked.isNotEmpty()) return "許可されていないコマンドが含まれています: ${blocked.joinToString()}"
         return null
     }
 
     fun isWaitCommand(cmd: String) = waitRegex.matches(cmd.trim())
+
+    // ============================
+    // tick / 秒 変換ユーティリティ
+    // ============================
+
+    /** 秒数を tick 数に変換する (1tick = 0.05s) */
+    private fun secondsToTicks(seconds: Double): Long = (seconds * 20.0).toLong()
+
+    /** tick 数を秒数に変換する */
+    private fun ticksToSeconds(ticks: Long): Double = ticks / 20.0
+
+    /** 秒数を読みやすい文字列に整形する。 */
+    private fun formatSeconds(seconds: Double): String {
+        val long = seconds.toLong()
+        return if (seconds == long.toDouble()) long.toString() else seconds.toBigDecimal().stripTrailingZeros().toPlainString()
+    }
 
     private fun playerFile(uuid: UUID) = File(dataDir, "$uuid.yml")
 }
