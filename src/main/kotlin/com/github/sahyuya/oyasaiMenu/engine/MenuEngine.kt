@@ -66,8 +66,14 @@ class MenuEngine(private val plugin: OyasaiMenu) : Listener {
         val slot = event.rawSlot
         if (state.menuId == "root" && slot in 45..53) {
             when (slot) {
-                45 -> { NavBar.apply(player.openInventory.topInventory, player, plugin, -1); player.playSound(player.location, org.bukkit.Sound.UI_BUTTON_CLICK, 0.5f, 1f) }
-                else -> { val entry = NavBar.entries.find { it.slot == slot }; if (entry != null) Bukkit.getScheduler().runTaskLater(plugin, Runnable { plugin.popupMenuEngine.open(player, entry.popupId) }, 1L) }
+                45 -> {
+                    player.performCommand("dp")
+                    player.playSound(player.location, org.bukkit.Sound.UI_BUTTON_CLICK, 0.5f, 1f)
+                }
+                else -> {
+                    val entry = NavBar.entries.find { it.slot == slot }
+                    if (entry != null) Bukkit.getScheduler().runTaskLater(plugin, Runnable { plugin.popupMenuEngine.open(player, entry.popupId) }, 1L)
+                }
             }
             return
         }

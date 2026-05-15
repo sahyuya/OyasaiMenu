@@ -248,7 +248,7 @@ class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
                             Component.text(cmd).color(NamedTextColor.YELLOW)
                                 .clickEvent(ClickEvent.suggestCommand(cmd))
                                 .hoverEvent(HoverEvent.showText(
-                                    Component.text("クリックでチャット欄に入力")
+                                    Component.text("クリックで自分のプロフィールへ")
                                         .color(NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
                                 ))
                         ).build()
