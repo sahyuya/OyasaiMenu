@@ -17,6 +17,9 @@ import java.io.File
  *   - fallback_texture: fallback_icon が CUSTOM_HEAD のときのテクスチャハッシュ
  *   - fallback_actions: 権限不足プレイヤーがクリックした際のアクション
  *   - required_permission: 特定パーミッションを持つプレイヤーのみ表示
+ *   - components: minecraft の全コンポーネントを rawComponents として保持
+ *       minecraft:block_state / minecraft:potion_contents /
+ *       minecraft:stored_enchantments / minecraft:enchantments など
  */
 class PopupMenuLoader(private val plugin: OyasaiMenu) {
 
@@ -84,8 +87,8 @@ class PopupMenuLoader(private val plugin: OyasaiMenu) {
             // fallback_icon の解決
             val fallbackIconName = sec.getString("fallback_icon")?.uppercase()
             val fallbackIcon: Material? = when {
-                fallbackIconName == null       -> null
-                fallbackIconName == "AIR"      -> Material.AIR
+                fallbackIconName == null          -> null
+                fallbackIconName == "AIR"         -> Material.AIR
                 fallbackIconName == "CUSTOM_HEAD" -> Material.PLAYER_HEAD
                 else -> runCatching { Material.valueOf(fallbackIconName) }.getOrElse {
                     plugin.logger.warning("Popup $id '$key': 不明な fallback_icon '$fallbackIconName'")
@@ -133,6 +136,24 @@ class PopupMenuLoader(private val plugin: OyasaiMenu) {
         return PopupMenuDef(id = id, title = title, glass = glass, navActive = navActive, items = items)
     }
 
+    /**
+     * ConfigurationSection を再帰的に Map<String, Any> に変換する。
+     * YamlConfiguration の getValues(deep=true) はドット区切りでフラット化するため、
+     * このメソッドでネスト構造を維持したまま変換する。
+     */
+    private fun sectionToMap(sec: ConfigurationSection): Map<String, Any> {
+        val result = linkedMapOf<String, Any>()
+        sec.getKeys(false).forEach { key ->
+            val subSec = sec.getConfigurationSection(key)
+            if (subSec != null) {
+                result[key] = sectionToMap(subSec)
+            } else {
+                sec.get(key)?.let { result[key] = it }
+            }
+        }
+        return result
+    }
+
     private fun parseItemSpec(sec: ConfigurationSection?, popupId: String, itemKey: String): PopupItemSpec? {
         if (sec == null) return null
         val id = sec.getString("id") ?: sec.getString("material") ?: run {
@@ -144,18 +165,36 @@ class PopupMenuLoader(private val plugin: OyasaiMenu) {
             plugin.logger.warning("Popup $popupId '$itemKey': 不明な item.id '$id'")
             return null
         }
-        val blockState = linkedMapOf<String, String>()
-        val components = sec.getConfigurationSection("components")
-        val blockStateSec = components?.getConfigurationSection("minecraft:block_state")
-            ?: components?.getConfigurationSection("block_state")
-            ?: sec.getConfigurationSection("block_state")
+
+        val blockState     = linkedMapOf<String, String>()
+        val rawComponents  = linkedMapOf<String, Any>()
+
+        val componentsSec = sec.getConfigurationSection("components")
+        componentsSec?.getKeys(false)?.forEach { compKey ->
+            // キーを "minecraft:xxx" に正規化
+            val normalizedKey = if (compKey.startsWith("minecraft:")) compKey else "minecraft:$compKey"
+            val compSec = componentsSec.getConfigurationSection(compKey)
+            val compData: Any = if (compSec != null) sectionToMap(compSec) else (componentsSec.get(compKey) ?: return@forEach)
+            rawComponents[normalizedKey] = compData
+
+            // block_state は blockState にも同期 (後方互換)
+            if (normalizedKey == "minecraft:block_state" && compData is Map<*, *>) {
+                @Suppress("UNCHECKED_CAST")
+                (compData as Map<String, Any>).forEach { (k, v) -> blockState[k] = v.toString() }
+            }
+        }
+
+        // トップレベルの block_state: セクション (後方互換)
+        val blockStateSec = sec.getConfigurationSection("block_state")
         blockStateSec?.getKeys(false)?.forEach { stateKey ->
             blockState[stateKey] = blockStateSec.getString(stateKey) ?: return@forEach
         }
+
         return PopupItemSpec(
-            material = material,
-            amount = sec.getInt("count", sec.getInt("amount", 1)).coerceIn(1, 64),
-            blockState = blockState
+            material      = material,
+            amount        = sec.getInt("count", sec.getInt("amount", 1)).coerceIn(1, 64),
+            blockState    = blockState,
+            rawComponents = rawComponents
         )
     }
 

@@ -76,8 +76,27 @@ enum class PopupActionType {
     CLOSE
 }
 
+/**
+ * item: / fallback_item: セクションで指定できるアイテム仕様。
+ *
+ * @param blockState    minecraft:block_state 相当 (後方互換用。components にも書ける)
+ * @param rawComponents components: セクション全体を正規化したMap。
+ *                      サポートされているコンポーネント:
+ *                        - minecraft:block_state         ブロック状態 (copper_golem_pose など)
+ *                        - minecraft:potion_contents     ポーション効果 (ポーション・先端矢など)
+ *                            potion: minecraft:healing
+ *                            custom_effects:
+ *                              - type: minecraft:instant_health
+ *                                amplifier: 0
+ *                                duration: 200
+ *                        - minecraft:stored_enchantments エンチャント本の格納エンチャント
+ *                            minecraft:efficiency: 5
+ *                        - minecraft:enchantments        アイテムのエンチャント
+ *                            minecraft:unbreaking: 3
+ */
 data class PopupItemSpec(
     val material: Material,
     val amount: Int = 1,
-    val blockState: Map<String, String> = emptyMap()
+    val blockState: Map<String, String> = emptyMap(),
+    val rawComponents: Map<String, Any> = emptyMap()
 )

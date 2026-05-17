@@ -26,6 +26,10 @@ import org.bukkit.inventory.Inventory
 import org.bukkit.inventory.ItemFlag
 import org.bukkit.inventory.ItemStack
 import org.bukkit.inventory.meta.BlockDataMeta
+import org.bukkit.inventory.meta.EnchantmentStorageMeta
+import org.bukkit.inventory.meta.ItemMeta
+import org.bukkit.inventory.meta.PotionMeta
+import org.bukkit.potion.PotionEffect
 
 /**
  * PopupMenuEngine
@@ -34,6 +38,13 @@ import org.bukkit.inventory.meta.BlockDataMeta
  *   - buildItemStack(): HIDE_ATTRIBUTES を追加してツール・防具の属性値を非表示
  *   - fallback_icon: CUSTOM_HEAD/PLAYER_HEAD + fallback_texture でカスタムヘッド表示
  *   - fallback_actions: 権限不足プレイヤーがクリックした際にアクションを実行
+ *   - [修正] TOOLTIP_DISPLAY バグ修正:
+ *       buildBaseItemStack() で設定した TOOLTIP_DISPLAY が、呼び出し元の
+ *       stack.itemMeta = meta により上書きされていた問題を修正。
+ *       applyDataComponents() を setItemMeta() の後に必ず呼ぶよう統一。
+ *   - [追加] 全コンポーネント対応:
+ *       applySpecToMeta()   → PotionMeta / EnchantmentStorageMeta / enchants を適用
+ *       applyDataComponents() → TOOLTIP_DISPLAY (block_state 非表示) を適用
  */
 class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
 
@@ -74,7 +85,11 @@ class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
                             fbMeta.lore(item.fallbackLore.map { comp(it) })
                         }
                         fbMeta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_ADDITIONAL_TOOLTIP)
+                        // meta-based コンポーネント (potion_contents 等) を適用
+                        applySpecToMeta(fbMeta, item.fallbackItemSpec)
                         fbStack.itemMeta = fbMeta
+                        // setItemMeta 後に DataComponent (TOOLTIP_DISPLAY) を適用 ← バグ修正箇所
+                        applyDataComponents(fbStack, item.fallbackItemSpec)
                         inv.setItem(item.slot, fbStack)
                     }
                     fb == null         -> { /* 未指定 → fillGlass に任せる */ }
@@ -117,7 +132,8 @@ class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
     }
 
     private fun buildItemStack(item: PopupItem): ItemStack {
-        val stack = item.itemSpec?.let { buildBaseItemStack(it, item.customTexture) } ?: when {
+        val spec = item.itemSpec
+        val stack = spec?.let { buildBaseItemStack(it, item.customTexture) } ?: when {
             item.icon == Material.PLAYER_HEAD && item.customTexture != null -> CustomHead.get(item.customTexture)
             else -> ItemStack(item.icon)
         }
@@ -132,9 +148,20 @@ class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
             }.getOrNull()
             if (unbreaking != null) { meta.addEnchant(unbreaking, 1, true); meta.addItemFlags(ItemFlag.HIDE_ENCHANTS) }
         }
-        stack.itemMeta = meta; return stack
+        // meta-based コンポーネント (potion_contents 等) を適用してから setItemMeta
+        if (spec != null) applySpecToMeta(meta, spec)
+        stack.itemMeta = meta
+        // setItemMeta 後に DataComponent (TOOLTIP_DISPLAY) を適用 ← バグ修正箇所
+        if (spec != null) applyDataComponents(stack, spec)
+        return stack
     }
 
+    /**
+     * ItemStack のベース (マテリアル・個数・block_state) を構築する。
+     *
+     * 注意: TOOLTIP_DISPLAY は setItemMeta() で上書きされるため、ここでは設定しない。
+     *       applyDataComponents() を setItemMeta() の後に呼ぶことで対応する。
+     */
     private fun buildBaseItemStack(spec: PopupItemSpec, customTexture: String?): ItemStack {
         val stack = when {
             spec.material == Material.PLAYER_HEAD && customTexture != null -> CustomHead.get(customTexture)
@@ -142,23 +169,154 @@ class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
         }
         if (spec.blockState.isNotEmpty()) {
             val meta = stack.itemMeta as? BlockDataMeta ?: return stack
-            val blockState = spec.blockState.entries.joinToString(",") { (key, value) -> "$key=$value" }
-            val data = runCatching { Bukkit.createBlockData(spec.material, "[$blockState]") }.getOrElse {
+            val blockStateStr = spec.blockState.entries.joinToString(",") { (key, value) -> "$key=$value" }
+            val data = runCatching { Bukkit.createBlockData(spec.material, "[$blockStateStr]") }.getOrElse {
                 plugin.logger.warning("Popup item '${spec.material.name}': block_state の適用に失敗しました: ${it.message}")
                 return stack
             }
             meta.setBlockData(data)
-            meta.addItemFlags(ItemFlag.HIDE_ADDITIONAL_TOOLTIP)
+            // HIDE_ADDITIONAL_TOOLTIP は設定しない (TOOLTIP_DISPLAY と競合するため)
             stack.itemMeta = meta
-            stack.setData(
-                DataComponentTypes.TOOLTIP_DISPLAY,
-                TooltipDisplay.tooltipDisplay()
-                    .addHiddenComponents(DataComponentTypes.BLOCK_DATA)
-                    .build()
-            )
+            // ここで TOOLTIP_DISPLAY を設定しても buildItemStack の setItemMeta で上書きされるので
+            // applyDataComponents() で再設定する
         }
         return stack
     }
+
+    // ============================
+    // コンポーネント適用ヘルパー
+    // ============================
+
+    /**
+     * ItemMeta に rawComponents の内容を適用する。
+     * PotionMeta / EnchantmentStorageMeta など ItemMeta 経由で設定するコンポーネントを対象とする。
+     * この関数は setItemMeta() の前に呼ぶこと。
+     */
+    private fun applySpecToMeta(meta: ItemMeta, spec: PopupItemSpec) {
+        spec.rawComponents.forEach { (key, value) ->
+            val data = value as? Map<*, *> ?: return@forEach
+            when (key) {
+                "minecraft:potion_contents" ->
+                    if (meta is PotionMeta) applyPotionContents(meta, data)
+                "minecraft:stored_enchantments" ->
+                    if (meta is EnchantmentStorageMeta) applyStoredEnchantments(meta, data)
+                "minecraft:enchantments" ->
+                    applyEnchantments(meta, data)
+            }
+        }
+    }
+
+    /**
+     * setItemMeta() の後に呼ぶ DataComponent 設定。
+     * block_state が存在する場合、TOOLTIP_DISPLAY で BLOCK_DATA を非表示にする。
+     * これにより copper_golem_pose: star などのブロック状態がツールチップに出なくなる。
+     */
+    private fun applyDataComponents(stack: ItemStack, spec: PopupItemSpec) {
+        if (spec.blockState.isEmpty()) return
+        stack.setData(
+            DataComponentTypes.TOOLTIP_DISPLAY,
+            TooltipDisplay.tooltipDisplay()
+                .addHiddenComponents(DataComponentTypes.BLOCK_DATA)
+                .build()
+        )
+    }
+
+    /**
+     * minecraft:potion_contents を PotionMeta に適用する。
+     *
+     * YAML 例:
+     *   components:
+     *     minecraft:potion_contents:
+     *       potion: minecraft:healing          # ベースポーションタイプ
+     *       custom_effects:                    # 独自エフェクト (任意)
+     *         - type: minecraft:instant_health
+     *           amplifier: 0                   # 0 = レベル1
+     *           duration: 1                    # ティック数 (instant系は1でOK)
+     *           ambient: false
+     *           show_particles: true
+     */
+    @Suppress("UNCHECKED_CAST")
+    private fun applyPotionContents(meta: PotionMeta, data: Map<*, *>) {
+        // ベースポーションタイプ
+        val potionStr = data["potion"]?.toString()
+        if (potionStr != null) {
+            val key = potionStr.removePrefix("minecraft:")
+            runCatching {
+                @Suppress("DEPRECATION")
+                val potionType = Registry.POTION.get(NamespacedKey.minecraft(key))
+                if (potionType != null) meta.basePotionType = potionType
+            }.onFailure { plugin.logger.warning("potion_contents: 不明なポーションタイプ '$key'") }
+        }
+
+        // カスタムエフェクト
+        val effects = data["custom_effects"] as? List<*> ?: return
+        effects.filterIsInstance<Map<*, *>>().forEach { eff ->
+            val typeKey = eff["type"]?.toString()?.removePrefix("minecraft:") ?: return@forEach
+            val effectType = runCatching {
+                @Suppress("DEPRECATION")
+                Registry.EFFECT.get(NamespacedKey.minecraft(typeKey))
+            }.getOrNull() ?: run {
+                plugin.logger.warning("potion_contents.custom_effects: 不明なエフェクト '$typeKey'")
+                return@forEach
+            }
+            val amplifier  = (eff["amplifier"]      as? Number)?.toInt()     ?: 0
+            val duration   = (eff["duration"]        as? Number)?.toInt()     ?: 200
+            val ambient    = eff["ambient"]?.toString()?.toBoolean()           ?: false
+            val particles  = eff["show_particles"]?.toString()?.toBoolean()    ?: true
+            meta.addCustomEffect(PotionEffect(effectType, duration, amplifier, ambient, particles), true)
+        }
+    }
+
+    /**
+     * minecraft:stored_enchantments を EnchantmentStorageMeta に適用する。
+     *
+     * YAML 例:
+     *   components:
+     *     minecraft:stored_enchantments:
+     *       minecraft:efficiency: 5
+     *       minecraft:unbreaking: 3
+     */
+    private fun applyStoredEnchantments(meta: EnchantmentStorageMeta, data: Map<*, *>) {
+        data.forEach { (k, v) ->
+            val enchKey = k.toString().removePrefix("minecraft:")
+            val level   = (v as? Number)?.toInt() ?: return@forEach
+            val ench    = runCatching {
+                @Suppress("DEPRECATION")
+                Registry.ENCHANTMENT.get(NamespacedKey.minecraft(enchKey))
+            }.getOrNull() ?: run {
+                plugin.logger.warning("stored_enchantments: 不明なエンチャント '$enchKey'")
+                return@forEach
+            }
+            meta.addStoredEnchant(ench, level, true)
+        }
+    }
+
+    /**
+     * minecraft:enchantments を ItemMeta に適用する。
+     *
+     * YAML 例:
+     *   components:
+     *     minecraft:enchantments:
+     *       minecraft:sharpness: 5
+     */
+    private fun applyEnchantments(meta: ItemMeta, data: Map<*, *>) {
+        data.forEach { (k, v) ->
+            val enchKey = k.toString().removePrefix("minecraft:")
+            val level   = (v as? Number)?.toInt() ?: return@forEach
+            val ench    = runCatching {
+                @Suppress("DEPRECATION")
+                Registry.ENCHANTMENT.get(NamespacedKey.minecraft(enchKey))
+            }.getOrNull() ?: run {
+                plugin.logger.warning("enchantments: 不明なエンチャント '$enchKey'")
+                return@forEach
+            }
+            meta.addEnchant(ench, level, true)
+        }
+    }
+
+    // ============================
+    // イベントハンドラ
+    // ============================
 
     @EventHandler
     fun onInventoryClick(event: InventoryClickEvent) {
@@ -248,7 +406,7 @@ class PopupMenuEngine(private val plugin: OyasaiMenu) : Listener {
                             Component.text(cmd).color(NamedTextColor.YELLOW)
                                 .clickEvent(ClickEvent.suggestCommand(cmd))
                                 .hoverEvent(HoverEvent.showText(
-                                    Component.text("クリックで自分のプロフィールへ")
+                                    Component.text("クリックでチャット欄に入力されます")
                                         .color(NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
                                 ))
                         ).build()

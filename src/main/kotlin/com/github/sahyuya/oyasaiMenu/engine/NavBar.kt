@@ -104,7 +104,7 @@ object NavBar {
             comp("&7所持金: &6${if (EconomyManager.isAvailable) EconomyManager.format(EconomyManager.getBalance(player)) else "---"}"),
             comp("&7ポイント: &3${if (TokenCurrencyManager.isAvailable) "${TokenCurrencyManager.format(TokenCurrencyManager.getTokens(player))}&fP" else "---"}"),
             comp(""),
-            comp("&eクリックで更新")
+            comp("&eクリックで自分のプロフィールへ")
         ))
         skull.itemMeta = meta
         return skull
